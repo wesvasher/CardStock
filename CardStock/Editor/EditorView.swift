@@ -1,0 +1,475 @@
+import SwiftUI
+import UniformTypeIdentifiers
+
+/// Edits one post, page or project.
+struct EditorView: View {
+    @Environment(AppModel.self) private var model
+    let item: ContentItem
+
+    @State private var tagsText = ""
+    @FocusState private var tagsFocused: Bool
+    @State private var editor = MarkdownEditorController()
+    @State private var pendingImages: PendingImages?
+    @State private var showFilePicker = false
+    @State private var confirmDelete = false
+
+    var body: some View {
+        form
+        .safeAreaInset(edge: .bottom, spacing: 0) { footer }
+        .confirmationDialog("Move “\(current.title)” to the Trash?", isPresented: $confirmDelete) {
+            Button("Move to Trash", role: .destructive) { delete() }
+        } message: {
+            Text(deleteMessage)
+        }
+        .onAppear { tagsText = item.frontMatter.list("tags").joined(separator: ", ") }
+        .onChange(of: tagsFocused) { _, focused in
+            if !focused { commitTags() }
+        }
+        .onDisappear(perform: commitTags)
+        .sheet(isPresented: $showFilePicker) {
+            InsertFromFilesSheet { file in
+                editor.insertBlocks([MediaLibrary.markdown(for: file)])
+                model.showToast("Inserted \(file.name).")
+            }
+        }
+        .sheet(item: $pendingImages) { pending in
+            InsertImageSheet(pending: pending, item: current) { blocks, location in
+                editor.insertBlocks(blocks, at: location)
+            }
+        }
+    }
+
+    private var form: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 10) {
+                TextField("Title", text: binding(\.title))
+                    .font(.title.bold())
+                    .textFieldStyle(.plain)
+
+                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 8) {
+                    let kind = current.kind
+                    GridRow {
+                        label("Type")
+                        if current.isFixedPage {
+                            Text(current.isHome ? "Home page"
+                                 : current.isNotFoundPage ? "Page for broken links"
+                                 : current.isSearchPage ? "Search page: a search field and results, below this text"
+                                 : "Template: every part of your style, for the preview")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Picker("Type", selection: binding(\.kind)) {
+                                    ForEach(ContentKind.allCases) { kind in
+                                        Label(kind.singularName, systemImage: kind.systemImage).tag(kind)
+                                    }
+                                }
+                                .labelsHidden()
+                                .fixedSize()
+                                // Link menus are explained in the Help Center instead.
+                                if kind != .links {
+                                    Text(kind.summary)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                    }
+                    if kind != .links && !current.isTemplatePage && !current.isSearchPage {
+                        GridRow {
+                            label("Layout")
+                            LayoutPicker(item: current, layout: field("layout"))
+                        }
+                    }
+                    if kind != .links {
+                        GridRow {
+                            label("Address")
+                            HStack {
+                                Text(current.isHome ? "/ (your site's main address)"
+                                     : current.isTemplatePage ? "Preview only, never published"
+                                     : current.path)
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                                Spacer()
+                                if !current.isHome && !current.isTemplatePage && !current.isSearchPage {
+                                    Toggle("Draft", isOn: binding(\.isDraft))
+                                }
+                            }
+                        }
+                    }
+                    if kind == .post {
+                        GridRow {
+                            label("Date")
+                            DatePicker("Date", selection: dateBinding, displayedComponents: .date)
+                                .labelsHidden()
+                                .fixedSize()
+                        }
+                    }
+                    if kind == .product {
+                        GridRow {
+                            label("Price")
+                            TextField("$24.00", text: field("price"))
+                        }
+                        GridRow {
+                            label("Buy link")
+                            TextField("Checkout link from Stripe, Gumroad, Etsy, Shopify or PayPal", text: field("buy"))
+                        }
+                        GridRow {
+                            label("Button")
+                            TextField("Buy Now", text: field("buyLabel"))
+                        }
+                    }
+                    if let categoryKind = kind.categoryKind {
+                        GridRow {
+                            label("Categories")
+                            CategoryPicker(item: current, categoryKind: categoryKind)
+                        }
+                    }
+                    if let memberKind = kind.memberKind {
+                        GridRow {
+                            label("Lists")
+                            let count = model.site?.items(memberKind).filter { $0.categories.contains(current.slug) }.count ?? 0
+                            Text("\(count) \(count == 1 ? memberKind.singularName.lowercased() : memberKind.pluralName.lowercased()) in this category. Choose categories on each \(memberKind.singularName.lowercased()).")
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    if kind != .links && !current.isTemplatePage {
+                        GridRow {
+                            label("Summary")
+                            TextField("Short description for lists and search engines", text: field("summary"), axis: .vertical)
+                                .lineLimit(1...3)
+                        }
+                        if kind == .post {
+                            GridRow {
+                                label("Tags")
+                                TextField("Comma-separated", text: $tagsText)
+                                    .focused($tagsFocused)
+                                    .onSubmit(commitTags)
+                            }
+                        }
+                        GridRow {
+                            label("Cover")
+                            TextField("/media/image.jpg", text: field("cover"))
+                        }
+                    }
+                }
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+            }
+            .padding(16)
+
+            Divider()
+
+            FormattingBar(editor: editor, onUploadImage: chooseImages, onChooseFromFiles: { showFilePicker = true })
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+
+            Divider()
+
+            MarkdownEditor(text: binding(\.body), controller: editor) { urls, index in
+                pendingImages = PendingImages(urls: urls, location: index)
+            }
+            .padding(.horizontal, 4)
+        }
+        .background(Color(nsColor: .textBackgroundColor))
+    }
+
+    // MARK: - Footer
+
+    /// Stays at the bottom of the editor: deleting, or why this page can't be.
+    private var footer: some View {
+        HStack {
+            if current.canBeDeleted {
+                Button { confirmDelete = true } label: {
+                    Label("Move to Trash…", systemImage: "trash")
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 12)
+                        .frame(height: 30)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.interactive(), in: .capsule)
+                .help("Move this \(current.kind.singularName.lowercased()) to your Mac's Trash")
+            } else {
+                Label(current.isHome
+                      ? "Every site needs a Home page, so it can't be deleted."
+                      : current.isNotFoundPage
+                      ? "Every site needs a page for broken links, so it can't be deleted."
+                      : "The Template page shows your style in the preview, so it can't be deleted.",
+                      systemImage: "lock")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
+    }
+
+    private var deleteMessage: String {
+        var text = "Its file goes to your Mac's Trash. The next time you publish, it's removed from your live site. Its images stay in Files."
+        if model.site?.config.menuLinks.contains(where: { $0.url == current.path }) == true {
+            text = "It's in your site's top bar, so remove that link in Configuration → Top Navigation Bar too. " + text
+        }
+        return text
+    }
+
+    private func delete() {
+        model.delete(item.id)
+    }
+
+    /// Insert Image…: pick image files, then insert them at the cursor.
+    private func chooseImages() {
+        let panel = NSOpenPanel()
+        panel.title = "Insert Image"
+        panel.prompt = "Insert"
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = ImageImporter.supportedExtensions.compactMap { UTType(filenameExtension: $0) }
+        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
+        pendingImages = PendingImages(urls: panel.urls, location: editor.cursorLocation)
+    }
+
+    private func label(_ text: String) -> some View {
+        Text(text)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .gridColumnAlignment(.trailing)
+    }
+
+    // MARK: - Bindings
+
+    /// Reads from the model's current copy of the item, so edits never
+    /// overwrite each other.
+    private var current: ContentItem {
+        model.site?.items.first { $0.id == item.id } ?? item
+    }
+
+    private func binding<T>(_ keyPath: WritableKeyPath<ContentItem, T>) -> Binding<T> {
+        Binding(
+            get: { current[keyPath: keyPath] },
+            set: { newValue in
+                var updated = current
+                updated[keyPath: keyPath] = newValue
+                model.update(updated)
+            })
+    }
+
+    private func field(_ key: String) -> Binding<String> {
+        Binding(
+            get: { current.frontMatter.string(key) ?? "" },
+            set: { newValue in
+                var updated = current
+                updated.frontMatter.setString(key, newValue)
+                model.update(updated)
+            })
+    }
+
+    private static let isoDate: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    private var dateBinding: Binding<Date> {
+        Binding(
+            get: { Self.isoDate.date(from: current.date) ?? .now },
+            set: { newValue in
+                var updated = current
+                updated.date = Self.isoDate.string(from: newValue)
+                model.update(updated)
+            })
+    }
+
+    private func commitTags() {
+        guard current.kind == .post else { return }
+        let tags = tagsText.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        var updated = current
+        guard updated.frontMatter.list("tags") != tags else { return }
+        updated.frontMatter["tags"] = tags.isEmpty ? nil : .list(tags)
+        model.update(updated)
+    }
+}
+
+/// Buttons above the editor that insert Markdown for the selection.
+private struct FormattingBar: View {
+    let editor: MarkdownEditorController
+    let onUploadImage: () -> Void
+    let onChooseFromFiles: () -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Menu {
+                Button("Large Heading") { editor.heading(2) }
+                Button("Medium Heading") { editor.heading(3) }
+                Button("Small Heading") { editor.heading(4) }
+                Divider()
+                Button("Normal Text") { editor.heading(0) }
+                Button("Fine Print") { editor.finePrint() }
+            } label: {
+                Image(systemName: "textformat.size")
+            }
+            .menuIndicator(.visible)
+            .fixedSize()
+            .help("Text style: headings, normal text or fine print (for captions, credits and notes)")
+
+            separator
+            tool("bold", "Bold (⌘B)", editor.bold)
+            tool("italic", "Italic (⌘I)", editor.italic)
+            tool("strikethrough", "Strikethrough", editor.strikethrough)
+            tool("chevron.left.forwardslash.chevron.right", "Code", editor.code)
+            separator
+            tool("link", "Link (⌘K)", editor.link)
+            tool("list.bullet", "Bulleted list", { editor.lines(.bullet) })
+            tool("list.number", "Numbered list", { editor.lines(.numbered) })
+            tool("text.quote", "Quote", { editor.lines(.quote) })
+            tool("minus", "Divider line", editor.divider)
+            tool("rectangle.split.1x2", "Section break: in layouts with more than one area, the text after it goes in the next area", editor.sectionBreak)
+            tool("envelope", "Mailing list sign-up box: set it up in Configuration → Mailing List", editor.newsletter)
+            tool("magnifyingglass", "Search box: searching from it opens the Search page", editor.searchBox)
+            separator
+            Menu {
+                Button("Choose from Site Files…", systemImage: "photo.on.rectangle", action: onChooseFromFiles)
+                Button("Upload from Mac…", systemImage: "square.and.arrow.up", action: onUploadImage)
+            } label: {
+                Image(systemName: "photo.badge.plus")
+            }
+            .menuIndicator(.visible)
+            .fixedSize()
+            .help("Insert an image at the cursor. You can also drag or paste images into the text.")
+            Spacer(minLength: 0)
+        }
+        .buttonStyle(.borderless)
+        .labelStyle(.iconOnly)
+        .controlSize(.regular)
+    }
+
+    private func tool(_ symbol: String, _ help: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .frame(width: 26, height: 22)
+                .contentShape(Rectangle())
+        }
+        .help(help)
+        .accessibilityLabel(help)
+    }
+
+    private var separator: some View {
+        Divider().frame(height: 16).padding(.horizontal, 4)
+    }
+}
+
+/// The categories a blog post or product is in: a menu with a checkbox for
+/// each category page, and a way to make a new one.
+private struct CategoryPicker: View {
+    @Environment(AppModel.self) private var model
+    let item: ContentItem
+    let categoryKind: ContentKind
+    @State private var isNaming = false
+    @State private var newName = ""
+
+    private var categories: [ContentItem] { model.site?.items(categoryKind) ?? [] }
+
+    private var summary: String {
+        let names = item.categories.compactMap { slug in categories.first { $0.slug == slug }?.title }
+        return names.isEmpty ? "None" : ListFormatter.localizedString(byJoining: names)
+    }
+
+    var body: some View {
+        Menu {
+            ForEach(categories) { category in
+                Toggle(category.title, isOn: Binding(
+                    get: { item.categories.contains(category.slug) },
+                    set: { on in
+                        var updated = model.site?.items.first { $0.id == item.id } ?? item
+                        updated.categories.removeAll { $0 == category.slug }
+                        if on { updated.categories.append(category.slug) }
+                        model.update(updated)
+                    }))
+            }
+            if !categories.isEmpty { Divider() }
+            Button("New \(categoryKind.singularName)…") { newName = ""; isNaming = true }
+        } label: {
+            Text(summary)
+        }
+        .fixedSize()
+        .alert("New \(categoryKind.singularName)", isPresented: $isNaming) {
+            TextField("Name", text: $newName)
+            Button("Cancel", role: .cancel) {}
+            Button("Create") { create() }
+        } message: {
+            Text("This \(item.kind.singularName.lowercased()) goes in it. Write the category page's text later in Pages.")
+        }
+    }
+
+    /// Makes the category page (without leaving this page) and adds this item to it.
+    private func create() {
+        let name = newName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        let before = Set(model.site?.items.map(\.id) ?? [])
+        guard model.newItem(categoryKind, title: name, open: false) != nil,
+              let category = model.site?.items.first(where: { !before.contains($0.id) })
+        else { return }
+        var updated = model.site?.items.first { $0.id == item.id } ?? item
+        updated.categories.append(category.slug)
+        model.update(updated)
+    }
+}
+
+/// A page's layout: Standard (the type's own design) or one of the site's
+/// layouts that suits its type, with a line about what it does.
+private struct LayoutPicker: View {
+    @Environment(AppModel.self) private var model
+    let item: ContentItem
+    @Binding var layout: String
+
+    private var layouts: [PageLayout] { model.site?.layouts ?? [] }
+    private var chosen: PageLayout? { layouts.first { $0.id == item.layout } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 8) {
+                Picker("Layout", selection: $layout) {
+                    Text("Standard").tag("")
+                    let suited = layouts.filter { $0.suits(item.kind) || $0.id == item.layout }
+                    if !suited.isEmpty { Divider() }
+                    ForEach(suited) { layout in
+                        Text(layout.name).tag(layout.id)
+                    }
+                    if !item.layout.isEmpty && chosen == nil {
+                        Text("Missing: \(item.layout)").tag(item.layout)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+                Button("Layouts…") { model.showConfiguration(.layouts) }
+                    .buttonStyle(.link)
+                    .controlSize(.small)
+            }
+            if let note {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var note: String? {
+        if !item.layout.isEmpty && chosen == nil {
+            return "There's no “\(item.layout)” in theme/layouts, so this page uses Standard."
+        }
+        guard let chosen else { return nil }
+        guard chosen.areas.count > 1 else { return chosen.description.isEmpty ? nil : chosen.description }
+        let used = PageLayout.sections(of: item.body).count
+        return "Areas: \(chosen.areas.joined(separator: ", ")). Section breaks move text to the next area"
+            + (used > 1 ? " (this page has \(used) sections)." : "; without them, it all goes in \(chosen.mainArea).")
+    }
+}

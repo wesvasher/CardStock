@@ -1,0 +1,309 @@
+:root {
+  --bg: #fdfcfa;
+  --text: #1d1d1f;
+  --muted: #6e6e73;
+  --line: #e5e3df;
+  --accent: #b4532a;
+  --card: #ffffff;
+  /* Fonts, size, corners and width. CardStock's Theming panel overrides these. */
+  --font-body: ui-serif, Georgia, "Iowan Old Style", serif;
+  --font-heading: ui-sans-serif, -apple-system, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --font-size: 18px;
+  --h1-size: 32px;
+  --radius: 8px;
+  --measure: 40rem;
+  /* Top bar links. CardStock's Configuration → Top Navigation Bar overrides these. */
+  --nav-font: var(--font-heading);
+  --nav-size: 0.95rem;
+  --nav-weight: 400;
+  --nav-link: var(--muted);
+  --nav-hover: var(--text);
+  --nav-current: var(--text);
+  --nav-pressed: var(--nav-hover);
+  --nav-icon-dir: row;
+  --nav-icon: currentColor;
+  --navbtn-icon: currentColor;
+  /* Top bar buttons (links marked as buttons). */
+  --navbtn-bg: var(--accent);
+  --navbtn-text: var(--bg);
+  --navbtn-border: var(--line);
+  --navbtn-border-width: 0px;
+  --navbtn-radius: 8px;
+  --navbtn-alpha: 100%;
+  --navbtn-blur: 0px;
+  --navbtn-shadow: none;
+  --navbtn-pad-x: 14px;
+  --navbtn-pad-y: 6px;
+  /* Components. CardStock's Configuration → Components overrides these. */
+  --button-radius: 6px;
+  --button-pad-x: 1rem;
+  --button-pad-y: 0.5rem;
+  --button-bg: transparent;
+  --button-text: var(--accent);
+  --card-radius: 10px;
+  --card-padding: 1.25rem;
+  --card-border: 1px solid var(--line);
+  --card-shadow: none;
+  --cover-radius: var(--radius);
+  --image-radius: 0;
+  --code-radius: var(--radius);
+  --quote-bar: var(--line);
+  --quote-bar-width: 3px;
+  --table-stripe: transparent;
+  --menu-radius: var(--radius);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161617;
+    --text: #ececec;
+    --muted: #9a9aa0;
+    --line: #2e2e30;
+    --accent: #f08a5d;
+    --card: #1f1f21;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--font-size);
+  line-height: 1.65;
+  font-family: var(--font-body);
+}
+a { color: var(--accent); text-underline-offset: 0.15em; }
+img { max-width: 100%; height: auto; }
+
+.site-header, main, .site-footer {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+/* Three slots: left, center and right. Each holds a group of links, and
+   the logo and title sit in whichever one Configuration → Top Navigation Bar picks.
+   The side slots share the spare room equally (so the center stays centered when
+   they fit) but never get narrower than their contents, so links aren't cut off. */
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+  padding-top: 2.5rem;
+  padding-bottom: 2.5rem;
+  font-family: var(--font-heading);
+}
+.bar-slot { display: flex; align-items: center; gap: 0.5rem 1.5rem; }
+.bar-left, .bar-right { flex: 1 0 0; }
+.bar-center { flex: 0 0 auto; justify-content: center; }
+.bar-left { justify-content: flex-start; }
+.bar-right { justify-content: flex-end; }
+@media (max-width: 600px) {
+  .site-header { flex-wrap: wrap; justify-content: space-between; }
+  .bar-slot { flex-wrap: wrap; flex: 0 1 auto; }
+  .bar-slot:empty { display: none; }
+}
+.site-title { color: var(--text); font-weight: 700; text-decoration: none; font-size: 1.1rem; display: inline-flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+
+/* Top bar. Theming → Top Bar sets the sizes (--bar-h, --logo-h, …) on .site-bar.
+   --p runs from 0 to 1 as a shrinking bar shrinks. */
+.site-bar { --p: 0; --logo-s: calc(1 - (1 - var(--logo-k, 1)) * var(--p)); }
+.logo-box { display: grid; align-items: center; justify-items: start; }
+.logo-box .logo {
+  grid-area: 1 / 1;
+  width: auto;
+  max-width: none;
+  height: calc(var(--logo-h) * var(--logo-s));
+}
+/* A width set for the logo shrinks along with its height. */
+.has-logo-width .logo-large { width: calc(var(--logo-w) * var(--logo-s)); object-fit: contain; }
+.logo-compact { opacity: 0; }
+.has-compact-logo .logo-large { opacity: calc(1 - var(--p)); }
+.has-compact-logo .logo-compact { opacity: var(--p); }
+.site-bar.is-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  /* Lets the page show through, softly blurred. */
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+.site-bar.is-fixed .site-header {
+  flex-wrap: nowrap;
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+  height: calc(var(--bar-h) - (var(--bar-h) - var(--bar-h-compact)) * var(--p));
+}
+.site-bar.is-fixed .bar-slot { flex-wrap: nowrap; }
+/* On phones a fixed bar can't grow taller, so its links scroll sideways. */
+@media (max-width: 600px) {
+  .site-bar.is-fixed .bar-slot { flex: 0 1 auto; min-width: 0; }
+  .site-bar.is-fixed nav { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+}
+.site-bar-spacer { height: var(--bar-h); margin-bottom: 2rem; }
+.site-header nav { display: flex; align-items: center; gap: 1.25rem; font-family: var(--nav-font); font-size: var(--nav-size); font-weight: var(--nav-weight); }
+.site-header nav a, .nav-overlay-links a { display: inline-flex; align-items: center; gap: 0.4em; flex-direction: var(--nav-icon-dir); color: var(--nav-link); text-decoration: none; white-space: nowrap; }
+.nav-icon { width: 1.15em; height: 1.15em; flex-shrink: 0; color: var(--nav-icon); }
+.nav-button .nav-icon { color: var(--navbtn-icon); }
+.site-header nav a[aria-current], .nav-overlay-links a[aria-current] { color: var(--nav-current); }
+.site-header nav a:hover, .nav-overlay-links a:hover { color: var(--nav-hover); }
+.site-header nav a:active, .nav-overlay-links a:active { color: var(--nav-pressed); }
+/* Links marked as buttons. Configuration → Top Navigation Bar → Button Style sets these. */
+.site-header nav a.nav-button, .nav-overlay-links a.nav-button {
+  color: var(--navbtn-text);
+  background: color-mix(in srgb, var(--navbtn-bg) var(--navbtn-alpha), transparent);
+  border: var(--navbtn-border-width) solid var(--navbtn-border);
+  border-radius: var(--navbtn-radius);
+  padding: var(--navbtn-pad-y) var(--navbtn-pad-x);
+  box-shadow: var(--navbtn-shadow);
+  -webkit-backdrop-filter: blur(var(--navbtn-blur));
+  backdrop-filter: blur(var(--navbtn-blur));
+  transition: filter 0.15s, transform 0.15s;
+}
+.site-header nav a.nav-button:hover, .nav-overlay-links a.nav-button:hover { color: var(--navbtn-text); filter: brightness(1.08); }
+.site-header nav a.nav-button:active, .nav-overlay-links a.nav-button:active { color: var(--navbtn-text); transform: translateY(1px); }
+
+/* Phone menu: on narrow screens the links fold into a menu button that opens
+   them over the whole page. Configuration → Top Navigation Bar → Phones turns it off. */
+.nav-toggle, .nav-overlay { display: none; }
+.nav-toggle, .nav-close { align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem; padding: 0; border: 0; border-radius: 10px; background: none; color: var(--nav-link); cursor: pointer; }
+.nav-toggle:hover, .nav-close:hover { color: var(--nav-hover); }
+.nav-toggle svg, .nav-close svg { width: 1.6rem; height: 1.6rem; }
+.nav-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4.5rem 1.5rem 2.5rem;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  -webkit-backdrop-filter: blur(0);
+  backdrop-filter: blur(0);
+  opacity: 0;
+  transition: opacity 0.2s ease, backdrop-filter 0.2s ease, -webkit-backdrop-filter 0.2s ease;
+}
+.nav-overlay.is-open {
+  opacity: 1;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  transition-duration: 0.35s;
+}
+/* Opening: the links slide up and fade in one after another (--i is each
+   link's place, set by the script), and ✕ spins in. Closing is quick. */
+.nav-overlay-links a {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.nav-overlay.is-open .nav-overlay-links a {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.4s ease, transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition-delay: calc(0.08s + var(--i, 0) * 0.05s);
+}
+.nav-close { opacity: 0; transform: rotate(-90deg) scale(0.6); transition: opacity 0.15s, transform 0.15s; }
+.nav-overlay.is-open .nav-close { opacity: 1; transform: none; transition: opacity 0.3s 0.05s, transform 0.4s 0.05s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .nav-overlay, .nav-overlay.is-open, .nav-overlay-links a, .nav-overlay.is-open .nav-overlay-links a,
+  .nav-close, .nav-overlay.is-open .nav-close { transition: none; transform: none; }
+}
+.nav-close { display: inline-flex; position: absolute; top: 0.85rem; right: 0.85rem; }
+.nav-overlay-links { display: flex; flex-direction: column; align-items: center; gap: 1.4rem; font-family: var(--nav-font); font-weight: var(--nav-weight); font-size: calc(var(--nav-size) * 1.6); }
+.nav-overlay-links .nav-icon { width: 1em; height: 1em; }
+html.nav-open { overflow: hidden; }
+@media (max-width: 600px) {
+  .has-mobile-menu .site-header { flex-wrap: nowrap; justify-content: space-between; }
+  .has-mobile-menu .bar-slot nav { display: none; }
+  .has-mobile-menu .bar-slot:not(.has-brand) { display: none; }
+  .has-mobile-menu .nav-toggle { display: inline-flex; flex-shrink: 0; margin-left: auto; margin-right: -0.6rem; }
+  .nav-overlay:not([hidden]) { display: flex; }
+}
+
+h1, h2, h3 { font-family: var(--font-heading); line-height: 1.25; }
+h1 { font-size: var(--h1-size); margin: 0 0 0.5rem; letter-spacing: -0.01em; }
+/* Big headings are scaled down a little on phones. */
+@media (max-width: 600px) { h1 { font-size: calc(var(--h1-size) * 0.8); } }
+.meta, time, .empty { color: var(--muted); font-size: 0.9rem; font-family: var(--font-heading); }
+.tag { margin-right: 0.5em; }
+.tag::before { content: "#"; }
+.category { margin-right: 0.5em; }
+.intro { color: var(--muted); margin-top: 0; }
+.content.intro { color: var(--text); margin-bottom: 2rem; }
+.cover { display: block; margin: 1.5rem 0; border-radius: var(--cover-radius); }
+.content img { border-radius: var(--image-radius); }
+
+.post-list { list-style: none; padding: 0; margin: 2rem 0; }
+.post-list li { padding: 1rem 0; border-top: 1px solid var(--line); }
+.post-list a { font-family: var(--font-heading); font-weight: 600; font-size: 1.15rem; text-decoration: none; color: var(--text); }
+.post-list a:hover { color: var(--accent); }
+.post-list time { display: block; }
+.post-list p { margin: 0.35rem 0 0; }
+
+.project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 1.25rem; margin: 2rem 0; }
+.project-card { display: block; padding: var(--card-padding); border: var(--card-border); border-radius: var(--card-radius); box-shadow: var(--card-shadow); background: var(--card); color: var(--text); text-decoration: none; }
+.project-card:hover { border-color: var(--accent); }
+.project-card img { border-radius: calc(var(--card-radius) * 0.6); margin-bottom: 0.75rem; }
+.project-card h2 { font-size: 1.1rem; margin: 0 0 0.35rem; }
+.project-card p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+.price { font-family: var(--font-heading); font-weight: 600; color: var(--accent); }
+.product .price { font-size: 1.35rem; margin: 0.25rem 0 0; }
+.project-card .price { color: var(--accent); margin: 0 0 0.35rem; }
+.button.buy { background: var(--accent); color: var(--bg); font-weight: 600; padding: calc(var(--button-pad-y) * 1.3) calc(var(--button-pad-x) * 1.4); }
+.button.buy:hover { opacity: 0.9; }
+
+.content pre { background: var(--card); border: 1px solid var(--line); border-radius: var(--code-radius); padding: 1rem; overflow-x: auto; font-size: 0.85rem; }
+.content code { font-family: var(--font-mono); font-size: 0.9em; }
+.content blockquote { margin: 1.5rem 0; padding-left: 1rem; border-left: var(--quote-bar-width) solid var(--quote-bar); color: var(--muted); }
+.content small { font-size: 0.8em; line-height: 1.4; color: var(--muted); }
+.content p > img + small, .content p > a:has(> img) + small { display: block; margin-top: 0.4rem; }
+.content table { border-collapse: collapse; width: 100%; }
+.content th, .content td { border-bottom: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left; }
+.content tbody tr:nth-child(even) { background: var(--table-stripe); }
+.button { display: inline-block; padding: var(--button-pad-y) var(--button-pad-x); border: 1px solid var(--accent); border-radius: var(--button-radius); background: var(--button-bg); color: var(--button-text); text-decoration: none; font-family: var(--font-heading); font-size: 0.95rem; }
+.button:hover { opacity: 0.85; }
+
+.site-footer { margin-top: 4rem; padding-top: 1.5rem; padding-bottom: 3rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; font-family: var(--font-heading); }
+.site-footer a { color: var(--muted); }
+.site-footer .rss { margin-left: auto; padding: 0.1rem 0.7rem; border: 1px solid var(--line); border-radius: 999px; font-size: 0.8rem; text-decoration: none; }
+.site-footer .rss:hover { color: var(--accent); border-color: var(--accent); }
+/* One row: logo, copyright, links, then menus and RSS on the right. It wraps only on narrow screens. */
+.footer-row { display: flex; align-items: center; gap: 0.35rem 1.25rem; }
+.footer-row > * { min-width: 0; }
+@media (max-width: 600px) { .footer-row { flex-wrap: wrap; } }
+.footer-logo { display: block; flex-shrink: 0; max-width: 100%; object-fit: contain; }
+.footer-logo-row { flex-basis: 100%; display: flex; justify-content: center; }
+.footer-actions { margin-left: auto; flex-shrink: 0; display: flex; align-items: center; gap: 0.5rem; }
+.footer-actions .rss { margin-left: 0; }
+.footer-menu { position: relative; }
+.footer-menu summary { list-style: none; cursor: pointer; padding: 0.1rem 0.7rem; border: 1px solid var(--line); border-radius: 999px; font-size: 0.8rem; user-select: none; display: inline-flex; align-items: center; }
+/* Three dots after a menu button's text, drawn as circles. Tweak these values. */
+.footer-menu summary {
+  --dot-size: 2px;     /* diameter of each dot */
+  --dot-gap: 1.5px;    /* space between dots */
+  --dot-space: 0.45em; /* space between the text and the first dot */
+}
+.footer-menu summary::after {
+  content: "";
+  flex-shrink: 0;
+  width: var(--dot-size);
+  height: var(--dot-size);
+  margin-left: var(--dot-space);
+  /* Room for the second and third dots, which are shadows of the first. */
+  margin-right: calc(2 * (var(--dot-size) + var(--dot-gap)));
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: calc(var(--dot-size) + var(--dot-gap)) 0 0 currentColor,
+              calc(2 * (var(--dot-size) + var(--dot-gap))) 0 0 currentColor;
+}
+.footer-menu summary::-webkit-details-marker { display: none; }
+.footer-menu summary:hover, .footer-menu[open] summary { color: var(--accent); border-color: var(--accent); }
+.footer-menu ul { position: absolute; right: 0; bottom: calc(100% + 0.4rem); z-index: 10; min-width: 10rem; margin: 0; padding: 0.3rem; list-style: none; background: var(--card); border: 1px solid var(--line); border-radius: var(--menu-radius); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14); }
+.footer-menu li a { display: block; padding: 0.35rem 0.65rem; border-radius: calc(var(--radius) - 3px); color: var(--text); text-decoration: none; white-space: nowrap; }
+.footer-menu li a:hover { background: var(--line); color: var(--accent); }

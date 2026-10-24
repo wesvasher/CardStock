@@ -1,0 +1,29 @@
+<!--
+name: Two Columns
+description: An intro across the top, then two columns side by side. They stack on phones.
+areas: Intro, Left, Right
+main: Intro
+-->
+<style>
+  .layout-columns { width: min(60rem, calc(100vw - 2.5rem)); margin-left: 50%; transform: translateX(-50%); }
+  .layout-columns-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; }
+  @media (max-width: 700px) { .layout-columns-grid { grid-template-columns: 1fr; gap: 0; } }
+</style>
+<article class="layout-columns">
+  <h1>{{ page.title }}</h1>
+  {{{ page.meta }}}
+  {{#if page.cover}}<img class="cover" src="{{ page.cover }}" alt="">{{/if}}
+  {{#if section.1}}<div class="content">
+{{{ section.1 }}}
+  </div>{{/if}}
+  <div class="layout-columns-grid">
+    <div class="content">
+{{{ section.2 }}}
+    </div>
+    <div class="content">
+{{{ section.3 }}}
+    </div>
+  </div>
+  {{{ page.actions }}}
+  {{{ page.listing }}}
+</article>

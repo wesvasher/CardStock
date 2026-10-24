@@ -1,0 +1,36 @@
+<!--
+name: Sidebar
+description: Your text with a sidebar beside it showing recent posts and blog categories, plus any text you add.
+areas: Text, Sidebar
+main: Text
+-->
+<style>
+  .layout-sidebar { width: min(60rem, calc(100vw - 2.5rem)); margin-left: 50%; transform: translateX(-50%); display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 3rem; }
+  .layout-sidebar aside { font-family: var(--font-heading); font-size: 0.9rem; padding-top: 0.5rem; }
+  .layout-sidebar aside > h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 0.5rem; }
+  .layout-sidebar aside > ul { list-style: none; padding: 0; margin: 0 0 2rem; }
+  .layout-sidebar aside > ul > li { padding: 0.3rem 0; border-top: 1px solid var(--line); }
+  .layout-sidebar aside > .content { margin-bottom: 2rem; }
+  @media (max-width: 760px) { .layout-sidebar { grid-template-columns: 1fr; gap: 1rem; } }
+</style>
+<div class="layout-sidebar">
+  <article>
+    <h1>{{ page.title }}</h1>
+    {{{ page.meta }}}
+    {{#if page.cover}}<img class="cover" src="{{ page.cover }}" alt="">{{/if}}
+    <div class="content">
+{{{ section.1 }}}
+    </div>
+    {{{ page.actions }}}
+    {{{ page.listing }}}
+  </article>
+  <aside>
+    {{#if section.2}}<div class="content">
+{{{ section.2 }}}
+    </div>{{/if}}
+    {{#if recentPosts}}<h2>Recent posts</h2>
+    <ul>{{#each recentPosts}}<li><a href="{{ url }}">{{ title }}</a></li>{{/each}}</ul>{{/if}}
+    {{#if blogCategories}}<h2>Categories</h2>
+    <ul>{{#each blogCategories}}<li><a href="{{ url }}">{{ title }}</a></li>{{/each}}</ul>{{/if}}
+  </aside>
+</div>

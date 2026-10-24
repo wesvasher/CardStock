@@ -1,0 +1,31 @@
+<!--
+name: Hero
+description: The title over a big cover image (or a band of your accent color), with an intro. Your text follows below.
+areas: Intro, Text
+main: Text
+-->
+<style>
+  body:has(.layout-hero) { overflow-x: clip; }
+  .layout-hero { position: relative; width: 100vw; margin-left: 50%; transform: translateX(-50%); min-height: 22rem; display: flex; align-items: flex-end; background: var(--accent) center / cover no-repeat; color: #fff; }
+  .layout-hero::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0) 30%, rgba(0,0,0,0.55)); }
+  .layout-hero-inner { position: relative; width: 100%; max-width: var(--measure); margin: 0 auto; padding: 4rem 1.25rem 2rem; }
+  .layout-hero h1 { color: #fff; margin: 0 0 0.5rem; }
+  .layout-hero .content, .layout-hero .meta, .layout-hero .meta time, .layout-hero a { color: #fff; }
+  .layout-hero .content > :last-child { margin-bottom: 0; }
+</style>
+<section class="layout-hero"{{#if page.cover}} style="background-image: url('{{ page.cover }}')"{{/if}}>
+  <div class="layout-hero-inner">
+    <h1>{{ page.title }}</h1>
+    {{{ page.meta }}}
+    {{#if section.1}}<div class="content">
+{{{ section.1 }}}
+    </div>{{/if}}
+  </div>
+</section>
+<article>
+  <div class="content">
+{{{ section.2 }}}
+  </div>
+  {{{ page.actions }}}
+  {{{ page.listing }}}
+</article>

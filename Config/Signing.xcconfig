@@ -1,0 +1,23 @@
+// Code signing for all targets and configurations.
+//
+// By default builds are ad-hoc signed, which works anywhere (CI, other
+// contributors) but gives every build a new identity. macOS then asks for
+// the login keychain password each time a new build reads the saved GitHub
+// token.
+//
+// To sign your local builds with your own Apple Development certificate
+// (a stable identity, so "Always Allow" sticks), create Config/Local.xcconfig.
+// It's gitignored. Example:
+//
+//   CODE_SIGN_IDENTITY = Apple Development
+//   DEVELOPMENT_TEAM = ABCDE12345
+//
+// Find your team ID with:
+//   security find-certificate -c "Apple Development" -p | openssl x509 -noout -subject
+// (it's the OU= value).
+
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = -
+DEVELOPMENT_TEAM =
+
+#include? "Local.xcconfig"

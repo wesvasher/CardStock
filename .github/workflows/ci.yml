@@ -1,0 +1,17 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Build
+        run: DEVELOPER_DIR="$(xcode-select -p)" scripts/build.sh --no-open
+      - name: Test
+        run: DEVELOPER_DIR="$(xcode-select -p)" scripts/test.sh

@@ -1,0 +1,12 @@
+<article class="product">
+  <header>
+    <h1>{{ product.title }}</h1>
+    {{#if product.price}}<p class="price">{{ product.price }}</p>{{/if}}
+  </header>
+  {{#if product.cover}}<img class="cover" src="{{ product.cover }}" alt="">{{/if}}
+  <div class="content">
+{{{ product.content }}}
+  </div>
+  {{#if product.buy}}<p><a class="button buy" href="{{ product.buy }}" target="_blank" rel="noopener">{{ product.buyLabel }}</a></p>{{/if}}
+  {{#if product.categoryLinks}}<p class="meta">In {{#each product.categoryLinks}}<a class="category" href="{{ url }}">{{ title }}</a>{{/each}}</p>{{/if}}
+</article>

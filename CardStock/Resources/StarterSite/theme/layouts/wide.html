@@ -1,0 +1,17 @@
+<!--
+name: Wide
+description: A wider column, for big images, tables and galleries.
+-->
+<style>
+  .layout-wide { width: min(64rem, calc(100vw - 2.5rem)); margin-left: 50%; transform: translateX(-50%); }
+</style>
+<article class="layout-wide">
+  <h1>{{ page.title }}</h1>
+  {{{ page.meta }}}
+  {{#if page.cover}}<img class="cover" src="{{ page.cover }}" alt="">{{/if}}
+  <div class="content">
+{{{ page.content }}}
+  </div>
+  {{{ page.actions }}}
+  {{{ page.listing }}}
+</article>

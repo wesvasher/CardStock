@@ -1,0 +1,145 @@
+<!--
+  The Template page (pages/template.md): every part of the style on one page,
+  shown in CardStock's preview. It isn't published. Edit it like any other
+  template; the page's own text shows under the title.
+-->
+<style>
+  .theme-section { margin: 2.5rem 0; }
+  .theme-section > h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 0.4rem; }
+  .theme-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr)); gap: 0.75rem; }
+  .theme-swatch { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; font-size: 0.8rem; }
+  .theme-swatch span { display: block; height: 3.5rem; }
+  .theme-swatch p { margin: 0; padding: 0.4rem 0.6rem; }
+  .theme-fonts p { margin: 0.3rem 0; }
+  .theme-fonts .label { font: 0.75rem var(--font-heading); color: var(--muted); }
+  .theme-buttons { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+  /* Room above the button for the open menu, which opens upward as in the footer. */
+  .theme-menu { display: flex; justify-content: flex-end; padding-top: 6.5rem; font-family: var(--font-heading); font-size: 0.85rem; color: var(--muted); }
+</style>
+
+<article>
+  <h1>{{ page.title }}</h1>
+  {{#if page.content}}<div class="content intro">
+{{{ page.content }}}
+  </div>{{/if}}
+
+  <section class="theme-section">
+    <h2>Colors</h2>
+    <div class="theme-swatches">
+      <div class="theme-swatch"><span style="background: var(--bg)"></span><p>Background</p></div>
+      <div class="theme-swatch"><span style="background: var(--card)"></span><p>Cards and code blocks</p></div>
+      <div class="theme-swatch"><span style="background: var(--text)"></span><p>Text</p></div>
+      <div class="theme-swatch"><span style="background: var(--muted)"></span><p>Secondary text</p></div>
+      <div class="theme-swatch"><span style="background: var(--accent)"></span><p>Accent and links</p></div>
+      <div class="theme-swatch"><span style="background: var(--line)"></span><p>Lines and borders</p></div>
+    </div>
+  </section>
+
+  <section class="theme-section theme-fonts">
+    <h2>Fonts</h2>
+    <p class="label">Headings</p>
+    <p style="font-family: var(--font-heading); font-size: 1.6rem">The quick brown fox jumps over the lazy dog</p>
+    <p class="label">Body text</p>
+    <p style="font-family: var(--font-body)">The quick brown fox jumps over the lazy dog. 0123456789</p>
+    <p class="label">Code</p>
+    <p style="font-family: var(--font-mono); font-size: 0.9em">let greeting = "Hello, world"</p>
+  </section>
+
+  <section class="theme-section">
+    <h2>Headings and text</h2>
+    <div class="content">
+      <h1>Heading 1</h1>
+      <h2>Heading 2</h2>
+      <h3>Heading 3</h3>
+      <p>Body text reads like this, with <a href="/">a link</a>, <strong>bold</strong>, <em>italic</em> and <code>inline code</code>. A second sentence shows how lines wrap across the width of the content column.</p>
+      <p><small>Fine print, such as a photo caption or a note.</small></p>
+      <ul>
+        <li>A bulleted list</li>
+        <li>With a second item</li>
+      </ul>
+      <ol>
+        <li>A numbered list</li>
+        <li>With a second item</li>
+      </ol>
+      <blockquote><p>A quote stands apart from the text around it.</p></blockquote>
+      <pre><code>func hello() {
+    print("A code block")
+}</code></pre>
+      <table>
+        <thead><tr><th>Table</th><th>Column</th></tr></thead>
+        <tbody>
+          <tr><td>Row one</td><td>Value</td></tr>
+          <tr><td>Row two</td><td>Value</td></tr>
+          <tr><td>Row three</td><td>Value</td></tr>
+        </tbody>
+      </table>
+      <hr>
+    </div>
+  </section>
+
+  <section class="theme-section">
+    <h2>Buttons</h2>
+    <div class="theme-buttons">
+      <a class="button" href="/">Button</a>
+      <a class="button buy" href="/">Buy Now</a>
+    </div>
+  </section>
+
+  <section class="theme-section">
+    <h2>Post details</h2>
+    <p class="meta"><time>January 1</time> · <a class="category" href="/">Category</a> · <span class="tag">tag</span><span class="tag">another</span></p>
+  </section>
+
+  <section class="theme-section">
+    <h2>Post list</h2>
+    <ul class="post-list">
+      <li>
+        <a href="/">A blog post</a>
+        <time>January 1</time>
+        <p>The summary of the post shows under its title.</p>
+      </li>
+      <li>
+        <a href="/">Another post</a>
+        <time>December 12</time>
+      </li>
+    </ul>
+  </section>
+
+  <section class="theme-section">
+    <h2>Cards</h2>
+    <div class="project-grid">
+      <a class="project-card" href="/">
+        <h2>A product</h2>
+        <p class="price">$24</p>
+        <p>A short description of the product.</p>
+      </a>
+      <a class="project-card" href="/">
+        <h2>Another product</h2>
+        <p class="price">$12</p>
+      </a>
+    </div>
+  </section>
+
+  <section class="theme-section theme-images">
+    <h2>Images</h2>
+    <img class="cover" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='500'%3E%3Cdefs%3E%3ClinearGradient id='g' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23f2b28f'/%3E%3Cstop offset='1' stop-color='%236d8fb0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1200' height='500' fill='url(%23g)'/%3E%3C/svg%3E" alt="A cover image">
+    <div class="content">
+      <p><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='500'%3E%3Cdefs%3E%3ClinearGradient id='g' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23f2b28f'/%3E%3Cstop offset='1' stop-color='%236d8fb0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1200' height='500' fill='url(%23g)'/%3E%3C/svg%3E" alt="An image in the text"><small>An image in the text, with a caption.</small></p>
+    </div>
+  </section>
+
+  <section class="theme-section">
+    <h2>Drop-down menu</h2>
+    <div class="theme-menu">
+      <details class="footer-menu" open>
+        <summary>Follow</summary>
+        <ul>
+          <li><a href="/">A link</a></li>
+          <li><a href="/">Another link</a></li>
+        </ul>
+      </details>
+    </div>
+  </section>
+
+  <p class="empty">An empty list says something like this.</p>
+</article>

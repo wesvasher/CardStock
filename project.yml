@@ -1,0 +1,107 @@
+name: CardStock
+options:
+  bundleIdPrefix: com.wesvasher
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+configFiles:
+  Debug: Config/Signing.xcconfig
+  Release: Config/Signing.xcconfig
+settings:
+  base:
+    MARKETING_VERSION: "0.4.0"
+    CURRENT_PROJECT_VERSION: "8"
+    SWIFT_VERSION: "6.0"
+packages:
+  Markdown:
+    url: https://github.com/swiftlang/swift-markdown
+    from: "0.9.0"
+targets:
+  CardStock:
+    type: application
+    platform: macOS
+    sources:
+      - path: CardStock
+        excludes:
+          - "Resources/StarterSite"
+          - "Resources/Help"
+          - "Resources/AppIcon.icon"
+      # Icon Composer file: Xcode compiles it into the app icon.
+      - path: CardStock/Resources/AppIcon.icon
+        type: file
+        buildPhase: resources
+      - path: CardStock/Resources/StarterSite
+        type: folder
+        buildPhase: resources
+      # Help Center articles (Markdown), read by Help/HelpCenter.
+      - path: CardStock/Resources/Help
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: Markdown
+    info:
+      path: CardStock/Info.plist
+      properties:
+        CFBundleDocumentTypes:
+          # Document icons: AppIcon.icns is built from CardStock/Resources/AppIcon.icon.
+          # To give documents their own icon later, add an .icns to the app's
+          # resources and change "AppIcon" here and in UTTypeIconFile below.
+          - CFBundleTypeName: CardStock Site
+            CFBundleTypeIconFile: AppIcon
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSItemContentTypes: [com.wesvasher.cardstock.project]
+          - CFBundleTypeName: CardStock Template
+            CFBundleTypeIconFile: AppIcon
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes: [com.wesvasher.cardstock.style]
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.wesvasher.cardstock.project
+            UTTypeDescription: CardStock Site
+            UTTypeIconFile: AppIcon
+            UTTypeConformsTo: [public.data, public.content]
+            UTTypeTagSpecification:
+              public.filename-extension: [cardstock]
+          - UTTypeIdentifier: com.wesvasher.cardstock.style
+            UTTypeDescription: CardStock Template
+            UTTypeIconFile: AppIcon
+            UTTypeConformsTo: [public.json]
+            UTTypeTagSpecification:
+              public.filename-extension: [cardstockstyle, cardstocktheme]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.wesvasher.cardstock
+        PRODUCT_NAME: CardStock
+        INFOPLIST_KEY_CFBundleDisplayName: CardStock
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026 Wes Vasher. PolyForm Noncommercial License, with permission to make any website."
+        GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_ENTITLEMENTS: CardStock/CardStock.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        COMBINE_HIDPI_IMAGES: YES
+  CardStockTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: CardStockTests
+    dependencies:
+      - target: CardStock
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/CardStock.app/Contents/MacOS/CardStock"
+schemes:
+  CardStock:
+    build:
+      targets:
+        CardStock: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - CardStockTests

@@ -1,0 +1,22 @@
+<!--
+name: Landing
+description: No title. Each section is a full-width band, alternating colors, for a front page or a page that tells a story.
+types: page, blog-category, shop-category
+-->
+<style>
+  body:has(.layout-landing) { overflow-x: clip; }
+  .layout-landing section { width: 100vw; margin-left: 50%; transform: translateX(-50%); padding: 3.5rem 0; }
+  .layout-landing section:nth-child(even) { background: var(--card); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .layout-landing .content { max-width: var(--measure); margin: 0 auto; padding: 0 1.25rem; }
+  .layout-landing .content > :first-child { margin-top: 0; }
+  .layout-landing .content > :last-child { margin-bottom: 0; }
+</style>
+<div class="layout-landing">
+  {{#each page.sections}}<section>
+    <div class="content">
+{{{ this }}}
+    </div>
+  </section>{{/each}}
+</div>
+{{{ page.actions }}}
+{{{ page.listing }}}

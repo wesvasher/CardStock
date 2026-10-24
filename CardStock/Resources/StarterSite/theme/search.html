@@ -1,0 +1,125 @@
+<!-- The Search page (pages/search.md). The page's text shows above the
+     field. Results come from /search.json, which CardStock writes when it
+     builds the site; they show as you type, and /search/?q=words opens with
+     a search already done (the search box in other pages sends people here). -->
+<style>
+  .search-page .search-form { display: flex; gap: 0.5rem; margin: 1.5rem 0 0.75rem; }
+  .search-page .search-form input { flex: 1; min-width: 0; padding: var(--button-pad-y, 0.5rem) 0.85rem; font: inherit; font-size: 1rem; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: var(--button-radius, 6px); }
+  .search-page .search-form input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+  .search-page .search-form button { cursor: pointer; font: inherit; font-family: var(--font-heading); font-size: 0.95rem; }
+  .search-status { color: var(--muted); font-family: var(--font-heading); font-size: 0.9rem; min-height: 1.4em; }
+  .search-results { list-style: none; padding: 0; margin: 1rem 0 2rem; }
+  .search-results li { padding: 1rem 0; border-top: 1px solid var(--line); }
+  .search-results a { font-family: var(--font-heading); font-weight: 600; font-size: 1.15rem; text-decoration: none; color: var(--text); }
+  .search-results a:hover { color: var(--accent); }
+  .search-results .meta { margin: 0.15rem 0 0; }
+  .search-results p { margin: 0.35rem 0 0; }
+  .search-results mark { background: color-mix(in srgb, var(--accent) 25%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+</style>
+<article class="search-page">
+  <h1>{{ page.title }}</h1>
+  {{#if page.content}}<div class="content intro">
+{{{ page.content }}}
+  </div>{{/if}}
+  <form class="search-form" id="search-form" action="/search/" method="get" role="search" data-index="{{ search.index }}">
+    <input type="search" name="q" id="search-input" placeholder="{{ search.placeholder }}" aria-label="{{ search.placeholder }}" autocomplete="off">
+    <button class="button" type="submit">{{ search.buttonLabel }}</button>
+  </form>
+  <p class="search-status" id="search-status" aria-live="polite"></p>
+  <ol class="search-results" id="search-results"></ol>
+</article>
+<script>
+  (function () {
+    var form = document.getElementById("search-form");
+    var input = document.getElementById("search-input");
+    var status = document.getElementById("search-status");
+    var list = document.getElementById("search-results");
+    var pages = null;
+    var timer = null;
+
+    // Lowercase without accents, so "cafe" finds "Café".
+    function plain(s) {
+      return (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+    function escapeHTML(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+    function escapeRegExp(s) {
+      return s.replace(/[.*+?^$()|[\]\\]/g, "\\$&").replace(/[{}]/g, "\\$&");
+    }
+    // Escapes text and wraps the search words in <mark>.
+    function highlight(text, words) {
+      if (!words.length) return escapeHTML(text);
+      var pattern = new RegExp("(" + words.map(escapeRegExp).join("|") + ")", "gi");
+      return text.split(pattern).map(function (part, i) {
+        return i % 2 ? "<mark>" + escapeHTML(part) + "</mark>" : escapeHTML(part);
+      }).join("");
+    }
+    // A bit of the text around the first word found.
+    function snippet(page, words) {
+      var text = page.text || "";
+      var lower = text.toLowerCase();
+      var at = -1;
+      for (var i = 0; i < words.length && at < 0; i++) at = lower.indexOf(words[i].toLowerCase());
+      if (at < 0) return page.summary || text.slice(0, 160);
+      var start = Math.max(0, at - 60);
+      var end = Math.min(text.length, at + 120);
+      return (start > 0 ? "… " : "") + text.slice(start, end).trim() + (end < text.length ? " …" : "");
+    }
+
+    function search() {
+      var query = input.value.trim();
+      var url = new URL(location.href);
+      if (query) url.searchParams.set("q", query); else url.searchParams.delete("q");
+      history.replaceState(null, "", url);
+      list.innerHTML = "";
+      if (!query) { status.textContent = ""; return; }
+      if (!pages) { status.textContent = "Loading…"; return; }
+
+      var words = query.split(/\s+/).filter(Boolean);
+      var terms = words.map(plain);
+      var found = [];
+      pages.forEach(function (page) {
+        var score = 0;
+        for (var i = 0; i < terms.length; i++) {
+          var t = terms[i];
+          var hit = (page._title.indexOf(t) >= 0 ? 10 : 0) + (page._tags.indexOf(t) >= 0 ? 5 : 0)
+                  + (page._summary.indexOf(t) >= 0 ? 3 : 0) + (page._text.indexOf(t) >= 0 ? 1 : 0);
+          if (!hit) return;  // every word has to be somewhere
+          score += hit;
+        }
+        if (page._title.indexOf(terms.join(" ")) === 0) score += 5;
+        found.push({ page: page, score: score });
+      });
+      found.sort(function (a, b) { return b.score - a.score; });
+
+      status.textContent = found.length === 0 ? "No results for “" + query + "”."
+        : found.length === 1 ? "1 result" : found.length + " results";
+      list.innerHTML = found.slice(0, 50).map(function (f) {
+        var p = f.page;
+        var meta = [p.type, p.date].filter(Boolean).join(" · ");
+        return "<li><a href=\"" + escapeHTML(p.url) + "\">" + highlight(p.title, words) + "</a>"
+          + (meta ? "<p class=\"meta\">" + escapeHTML(meta) + "</p>" : "")
+          + "<p>" + highlight(snippet(p, words), words) + "</p></li>";
+      }).join("");
+    }
+
+    form.addEventListener("submit", function (e) { e.preventDefault(); search(); });
+    input.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(search, 120); });
+
+    input.value = new URLSearchParams(location.search).get("q") || "";
+    if (input.value) search();
+
+    fetch(form.getAttribute("data-index"))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        pages = data.map(function (p) {
+          p._title = plain(p.title); p._tags = plain((p.tags || []).join(" "));
+          p._summary = plain(p.summary); p._text = plain(p.text);
+          return p;
+        });
+        search();
+      })
+      .catch(function () { status.textContent = "Search isn't available right now."; });
+  })();
+</script>

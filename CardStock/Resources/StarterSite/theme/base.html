@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="{{ site.language }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{#if page.isHome}}{{ site.title }}{{else}}{{ page.title }} · {{ site.title }}{{/if}}</title>
+  <meta name="description" content="{{ page.description }}">
+  {{#if site.url}}<link rel="canonical" href="{{ site.url }}{{ page.url }}">{{/if}}
+  <link rel="alternate" type="application/rss+xml" title="{{ site.title }}" href="/feed.xml">
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <div class="site-bar{{#if header.fixed}} is-fixed{{/if}}{{#if header.shrinks}} shrinks{{/if}}{{#if header.compactLogo}} has-compact-logo{{/if}}{{#if header.logoWidth}} has-logo-width{{/if}}{{#if header.mobileMenu}} has-mobile-menu{{/if}}" style="{{ header.style }}">
+    <header class="site-header">
+      <!-- Each slot holds the logo and title (when they're placed there) and its group of links. -->
+      <div class="bar-slot bar-left{{#if header.brandLeft}} has-brand{{/if}}">{{#if header.brandLeft}}<a class="site-title" href="/"{{#if header.brandStyle}} style="{{ header.brandStyle }}"{{/if}}>{{#if header.logo}}<span class="logo-box"><img class="logo logo-large" src="{{ header.logo }}" alt="{{#if header.showTitle}}{{else}}{{ header.logoAlt }}{{/if}}">{{#if header.compactLogo}}<img class="logo logo-compact" src="{{ header.compactLogo }}" alt="" aria-hidden="true">{{/if}}</span>{{/if}}{{#if header.showTitle}}<span class="title-text">{{ site.title }}</span>{{/if}}</a>{{/if}}{{#if header.left}}<nav>{{#each header.left}}<a href="{{ url }}"{{#if button}} class="nav-button"{{/if}}{{#if current}} aria-current="page"{{/if}}{{#if label}} aria-label="{{ label }}"{{/if}}>{{{ icon }}}{{#if title}}<span>{{ title }}</span>{{/if}}</a>{{/each}}</nav>{{/if}}</div>
+      <div class="bar-slot bar-center{{#if header.brandCenter}} has-brand{{/if}}">{{#if header.brandCenter}}<a class="site-title" href="/"{{#if header.brandStyle}} style="{{ header.brandStyle }}"{{/if}}>{{#if header.logo}}<span class="logo-box"><img class="logo logo-large" src="{{ header.logo }}" alt="{{#if header.showTitle}}{{else}}{{ header.logoAlt }}{{/if}}">{{#if header.compactLogo}}<img class="logo logo-compact" src="{{ header.compactLogo }}" alt="" aria-hidden="true">{{/if}}</span>{{/if}}{{#if header.showTitle}}<span class="title-text">{{ site.title }}</span>{{/if}}</a>{{/if}}{{#if header.center}}<nav>{{#each header.center}}<a href="{{ url }}"{{#if button}} class="nav-button"{{/if}}{{#if current}} aria-current="page"{{/if}}{{#if label}} aria-label="{{ label }}"{{/if}}>{{{ icon }}}{{#if title}}<span>{{ title }}</span>{{/if}}</a>{{/each}}</nav>{{/if}}</div>
+      <div class="bar-slot bar-right{{#if header.brandRight}} has-brand{{/if}}">{{#if header.right}}<nav>{{#each header.right}}<a href="{{ url }}"{{#if button}} class="nav-button"{{/if}}{{#if current}} aria-current="page"{{/if}}{{#if label}} aria-label="{{ label }}"{{/if}}>{{{ icon }}}{{#if title}}<span>{{ title }}</span>{{/if}}</a>{{/each}}</nav>{{/if}}{{#if header.brandRight}}<a class="site-title" href="/"{{#if header.brandStyle}} style="{{ header.brandStyle }}"{{/if}}>{{#if header.logo}}<span class="logo-box"><img class="logo logo-large" src="{{ header.logo }}" alt="{{#if header.showTitle}}{{else}}{{ header.logoAlt }}{{/if}}">{{#if header.compactLogo}}<img class="logo logo-compact" src="{{ header.compactLogo }}" alt="" aria-hidden="true">{{/if}}</span>{{/if}}{{#if header.showTitle}}<span class="title-text">{{ site.title }}</span>{{/if}}</a>{{/if}}</div>
+      {{#if header.mobileMenu}}<button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="nav-overlay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button>{{/if}}
+    </header>
+  </div>
+  {{#if header.mobileMenu}}<!-- On phones the links fold into the menu button above, which opens them here, over the whole page. Icons: Lucide (ISC). -->
+  <div class="nav-overlay" id="nav-overlay" role="dialog" aria-modal="true" aria-label="Menu" hidden>
+    <button class="nav-close" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+    <nav class="nav-overlay-links">{{#each header.left}}<a href="{{ url }}"{{#if button}} class="nav-button"{{/if}}{{#if current}} aria-current="page"{{/if}}{{#if label}} aria-label="{{ label }}"{{/if}}>{{{ icon }}}{{#if title}}<span>{{ title }}</span>{{/if}}</a>{{/each}}{{#each header.center}}<a href="{{ url }}"{{#if button}} class="nav-button"{{/if}}{{#if current}} aria-current="page"{{/if}}{{#if label}} aria-label="{{ label }}"{{/if}}>{{{ icon }}}{{#if title}}<span>{{ title }}</span>{{/if}}</a>{{/each}}{{#each header.right}}<a href="{{ url }}"{{#if button}} class="nav-button"{{/if}}{{#if current}} aria-current="page"{{/if}}{{#if label}} aria-label="{{ label }}"{{/if}}>{{{ icon }}}{{#if title}}<span>{{ title }}</span>{{/if}}</a>{{/each}}</nav>
+  </div>
+  <script>
+    (function () {
+      var overlay = document.getElementById("nav-overlay");
+      var toggle = document.querySelector(".nav-toggle");
+      if (!overlay || !toggle) return;
+      var close = overlay.querySelector(".nav-close");
+      // Each link's place, for the stagger as they slide in.
+      overlay.querySelectorAll(".nav-overlay-links a").forEach(function (a, i) { a.style.setProperty("--i", i); });
+      function open() {
+        overlay.hidden = false;
+        void overlay.offsetWidth;  // lay it out first, so it fades in
+        overlay.classList.add("is-open");
+        toggle.setAttribute("aria-expanded", "true");
+        document.documentElement.classList.add("nav-open");
+        var first = overlay.querySelector("a");
+        if (first) first.focus();
+      }
+      function shut(returnFocus) {
+        overlay.classList.remove("is-open");
+        toggle.setAttribute("aria-expanded", "false");
+        document.documentElement.classList.remove("nav-open");
+        setTimeout(function () { if (!overlay.classList.contains("is-open")) overlay.hidden = true; }, 220);
+        if (returnFocus) toggle.focus();
+      }
+      toggle.addEventListener("click", open);
+      close.addEventListener("click", function () { shut(true); });
+      overlay.addEventListener("click", function (e) { if (e.target.closest("a")) shut(false); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !overlay.hidden) shut(true); });
+      // Close it if the window grows past phone size.
+      window.matchMedia("(min-width: 601px)").addEventListener("change", function (e) { if (e.matches && !overlay.hidden) shut(false); });
+    })();
+  </script>{{/if}}
+  {{#if header.fixed}}<div class="site-bar-spacer" style="{{ header.style }}"></div>{{/if}}
+  {{#if header.shrinks}}<script>
+    // Shrinks the top bar as the page scrolls: --p goes from 0 (full size) to 1 (compact).
+    (function () {
+      var bar = document.querySelector(".site-bar.shrinks");
+      if (!bar) return;
+      var style = getComputedStyle(bar);
+      var range = Math.max((parseFloat(style.getPropertyValue("--bar-h")) - parseFloat(style.getPropertyValue("--bar-h-compact"))) * 2, 1);
+      var waiting = false;
+      function update() {
+        waiting = false;
+        var p = Math.min(Math.max(window.scrollY / range, 0), 1);
+        bar.style.setProperty("--p", p.toFixed(3));
+        bar.classList.toggle("is-compact", p >= 1);
+      }
+      window.addEventListener("scroll", function () {
+        if (!waiting) { waiting = true; requestAnimationFrame(update); }
+      }, { passive: true });
+      update();
+    })();
+  </script>{{/if}}
+  <main>
+{{{ body }}}
+  </main>
+  {{#if footer.enabled}}
+  <footer class="site-footer">
+    <div class="footer-row">
+    {{#if footer.logo.left}}<img class="footer-logo" src="{{ footer.logo.src }}" alt="{{ footer.logo.alt }}" style="{{ footer.logo.style }}">{{/if}}
+    {{#if footer.copyright}}<span class="copyright">{{ footer.copyright }}</span>{{/if}}
+    {{#each footer.links}}<a href="{{ url }}">{{ title }}</a>{{/each}}
+    {{#if footer.attribution}}<a class="attribution" href="{{ footer.attribution.url }}" target="_blank" rel="noopener">{{ footer.attribution.text }}</a>{{/if}}
+    <span class="footer-actions">
+      {{#each footer.menus}}<details class="footer-menu"><summary>{{ title }}</summary><ul>{{#each links}}<li><a href="{{ url }}"{{#if external}} target="_blank" rel="noopener"{{/if}}>{{ title }}</a></li>{{/each}}</ul></details>{{/each}}
+      {{#if footer.rss}}<a class="rss" href="/feed.xml" target="_blank" rel="noopener">RSS</a>{{/if}}
+    </span>
+    </div>
+    {{#if footer.logo.below}}<div class="footer-logo-row" style="{{ footer.logo.rowStyle }}"><img class="footer-logo" src="{{ footer.logo.src }}" alt="{{ footer.logo.alt }}" style="{{ footer.logo.style }}"></div>{{/if}}
+  </footer>
+  {{#if footer.menus}}<script>
+    // Close footer menus when clicking elsewhere or pressing Escape.
+    document.addEventListener("click", function (e) {
+      document.querySelectorAll(".footer-menu[open]").forEach(function (m) { if (!m.contains(e.target)) m.removeAttribute("open"); });
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") document.querySelectorAll(".footer-menu[open]").forEach(function (m) { m.removeAttribute("open"); });
+    });
+  </script>{{/if}}
+  {{/if}}
+</body>
+</html>

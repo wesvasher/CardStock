@@ -1,0 +1,15 @@
+{{#if page.content}}
+<div class="content intro">
+{{{ page.content }}}
+</div>
+{{else}}{{#if site.description}}<p class="intro">{{ site.description }}</p>{{/if}}{{/if}}
+<ul class="post-list">
+  {{#each posts}}
+  <li>
+    <a href="{{ url }}">{{ title }}</a>
+    <time datetime="{{ date }}">{{ dateDisplay }}</time>
+    {{#if summary}}<p>{{ summary }}</p>{{/if}}
+  </li>
+  {{/each}}
+</ul>
+{{#if posts}}{{else}}<p class="empty">No posts yet.</p>{{/if}}

@@ -1,0 +1,11 @@
+{
+  "author" : "",
+  "description" : "Notes and work.",
+  "language" : "en",
+  "nav" : [
+    { "title" : "Blog", "url" : "/" },
+    { "title" : "About", "url" : "/about/" }
+  ],
+  "title" : "My Site",
+  "url" : ""
+}

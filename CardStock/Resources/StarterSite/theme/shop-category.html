@@ -1,0 +1,17 @@
+<article>
+  <h1>{{ page.title }}</h1>
+  {{#if page.content}}<div class="content intro">
+{{{ page.content }}}
+  </div>{{/if}}
+</article>
+<div class="project-grid">
+  {{#each products}}
+  <a class="project-card" href="{{ url }}">
+    {{#if cover}}<img src="{{ cover }}" alt="">{{/if}}
+    <h2>{{ title }}</h2>
+    {{#if price}}<p class="price">{{ price }}</p>{{/if}}
+    {{#if summary}}<p>{{ summary }}</p>{{/if}}
+  </a>
+  {{/each}}
+</div>
+{{#if products}}{{else}}<p class="empty">No products in this category yet.</p>{{/if}}

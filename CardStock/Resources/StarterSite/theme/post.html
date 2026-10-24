@@ -1,0 +1,10 @@
+<article>
+  <header>
+    <h1>{{ post.title }}</h1>
+    <p class="meta"><time datetime="{{ post.date }}">{{ post.dateDisplay }}</time>{{#if post.categoryLinks}} · {{#each post.categoryLinks}}<a class="category" href="{{ url }}">{{ title }}</a>{{/each}}{{/if}}{{#if post.tags}} · {{#each post.tags}}<span class="tag">{{ this }}</span>{{/each}}{{/if}}</p>
+  </header>
+  {{#if post.cover}}<img class="cover" src="{{ post.cover }}" alt="">{{/if}}
+  <div class="content">
+{{{ post.content }}}
+  </div>
+</article>
