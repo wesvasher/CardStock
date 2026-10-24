@@ -54,6 +54,22 @@ struct SiteConfig: Codable, Equatable, Sendable {
     var footer = Footer()
     var newsletter = Newsletter()
     var search = Search()
+    /// Tag pages and tag descriptions (Configuration → Tags).
+    var tags = TagSettings()
+    /// nil when site.json has no `collections` yet; `Site.load` fills in
+    /// the defaults so they're saved with the next change.
+    var storedCollections: [ContentCollection]?
+
+    /// The site's collections, such as the blog and the shop, in menu order.
+    var collections: [ContentCollection] {
+        get { storedCollections ?? [ContentCollection(preset: .blog, id: ContentCollection.blogID)] }
+        set { storedCollections = newValue }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case title, description, author, url, language, nav, header, footer, newsletter, search, tags
+        case storedCollections = "collections"
+    }
 
     /// Site search: the Search page (pages/search.md at /search/), the
     /// index it searches (/search.json) and the search box pages can show
@@ -77,7 +93,11 @@ struct SiteConfig: Codable, Equatable, Sendable {
             buttonLabel = try c.decodeIfPresent(String.self, forKey: .buttonLabel) ?? d.buttonLabel
         }
 
-        func includes(_ kind: ContentKind) -> Bool { kinds.contains(kind.rawValue) }
+        /// A collection's main page is found when its items are.
+        func includes(_ kind: ContentKind) -> Bool {
+            if case .main(let c) = kind { return kinds.contains(ContentCollection.itemType(c)) }
+            return kinds.contains(kind.rawValue)
+        }
 
         var shownPlaceholder: String {
             let t = placeholder.trimmingCharacters(in: .whitespaces)
@@ -353,6 +373,8 @@ struct SiteConfig: Codable, Equatable, Sendable {
         footer = try c.decodeIfPresent(Footer.self, forKey: .footer) ?? Footer()
         newsletter = try c.decodeIfPresent(Newsletter.self, forKey: .newsletter) ?? Newsletter()
         search = try c.decodeIfPresent(Search.self, forKey: .search) ?? Search()
+        tags = try c.decodeIfPresent(TagSettings.self, forKey: .tags) ?? TagSettings()
+        storedCollections = try c.decodeIfPresent([ContentCollection].self, forKey: .storedCollections)
     }
 
     /// Every link shown in the top bar: the left, center and right groups
@@ -369,108 +391,6 @@ struct SiteConfig: Codable, Equatable, Sendable {
     }
 }
 
-/// What a page is. Every page lives in `pages/`; its `type:` front matter
-/// says which kind it is (no `type` means a static page).
-enum ContentKind: String, CaseIterable, Sendable, Identifiable, Hashable {
-    // Menu order.
-    case page
-    case post
-    case blogCategory = "blog-category"
-    case product
-    case shopCategory = "shop-category"
-    case links
-
-    var id: String { rawValue }
-
-    /// Every page's file is in this folder.
-    static let folder = "pages"
-    var folder: String { Self.folder }
-
-    var singularName: String {
-        switch self {
-        case .page: "Static Page"
-        case .post: "Blog Post"
-        case .blogCategory: "Blog Category"
-        case .product: "Product"
-        case .shopCategory: "Shop Category"
-        case .links: "Link Menu"
-        }
-    }
-
-    var pluralName: String {
-        switch self {
-        case .page: "Static Pages"
-        case .post: "Blog Posts"
-        case .blogCategory: "Blog Categories"
-        case .product: "Products"
-        case .shopCategory: "Shop Categories"
-        case .links: "Link Menus"
-        }
-    }
-
-    /// One line about what this type does, for pickers.
-    var summary: String {
-        switch self {
-        case .page: "A page on its own, like About or Contact. Link to it from the menu, the footer or other pages."
-        case .post: "A dated blog post. It shows on the home page, in the RSS feed, and on the blog categories you choose."
-        case .blogCategory: "Lists every blog post you put in this category, newest first, under your own text."
-        case .product: "Something you sell, with a price and a Buy button that goes to your checkout link."
-        case .shopCategory: "Lists every product you put in this category, under your own text."
-        case .links: "A list of links for a drop-down menu in the footer. It isn't published as its own page."
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .page: "doc.text"
-        case .post: "square.and.pencil"
-        case .blogCategory: "folder"
-        case .product: "bag"
-        case .shopCategory: "square.grid.2x2"
-        case .links: "link"
-        }
-    }
-
-    /// The category type this type's pages can belong to.
-    var categoryKind: ContentKind? {
-        switch self {
-        case .post: .blogCategory
-        case .product: .shopCategory
-        default: nil
-        }
-    }
-
-    /// The type of page a category of this type lists.
-    var memberKind: ContentKind? {
-        switch self {
-        case .blogCategory: .post
-        case .shopCategory: .product
-        default: nil
-        }
-    }
-
-    /// Where images added in the editor go, inside media/.
-    var mediaFolder: String { self == .post ? "posts" : "pages" }
-
-    /// Published path for a page of this type with this slug.
-    func path(for slug: String) -> String {
-        switch self {
-        case .page:
-            switch slug {
-            case ContentItem.homeSlug: "/"
-            case ContentItem.notFoundSlug: "/404.html"
-            case ContentItem.templateSlug: SiteRenderer.templatePagePath
-            default: "/\(slug)/"
-            }
-        case .post: "/posts/\(slug)/"
-        case .blogCategory: "/blog/\(slug)/"
-        case .product, .shopCategory: "/shop/\(slug)/"
-        // Only shown in the preview; never published.
-        case .links: "/links/\(slug)/"
-        }
-    }
-}
-
 /// One Markdown file in `pages/`.
 struct ContentItem: Identifiable, Equatable, Sendable {
     var slug: String
@@ -483,7 +403,7 @@ struct ContentItem: Identifiable, Equatable, Sendable {
     var kind: ContentKind {
         get {
             if slug == Self.homeSlug || slug == Self.notFoundSlug || slug == Self.templateSlug || slug == Self.searchSlug { return .page }
-            return frontMatter.string("type").flatMap(ContentKind.init(rawValue:)) ?? .page
+            return frontMatter.string("type").flatMap { ContentKind(rawValue: $0, slug: slug) } ?? .page
         }
         set {
             frontMatter["type"] = newValue == .page ? nil : .string(newValue.rawValue)
@@ -493,7 +413,7 @@ struct ContentItem: Identifiable, Equatable, Sendable {
         }
     }
 
-    /// Slugs of the category pages this post or product is in.
+    /// Slugs of the category pages this item is in.
     var categories: [String] {
         get { frontMatter.list("categories") }
         set { frontMatter["categories"] = newValue.isEmpty ? nil : .list(newValue) }
@@ -549,7 +469,8 @@ struct ContentItem: Identifiable, Equatable, Sendable {
     var isLinkMenu: Bool { kind == .links }
 
     /// Pages every site needs, which can't be deleted.
-    var canBeDeleted: Bool { !isFixedPage }
+    /// Collection main pages go when their collection is removed.
+    var canBeDeleted: Bool { !isFixedPage && !kind.isMain }
 
     var fileText: String { FrontMatter.serialize(frontMatter, body: body) }
 
@@ -572,12 +493,20 @@ struct Site: Sendable {
     var webFonts: [ThemeSettings.CustomFont] = []
     /// Page layouts from theme/layouts (or the built-in ones).
     var layouts: [PageLayout] = []
+    /// Tags on files in media/ (media.json).
+    var mediaTags = MediaTags()
 
     static let configFile = "site.json"
     /// Slugs a static page can't use, because other addresses start with them.
-    static let reservedSlugs: Set<String> = ["posts", "blog", "shop", "links", "media", "assets", "feed.xml"]
+    static let reservedSlugs: Set<String> = ["posts", "blog", "shop", "links", "media", "assets", "feed.xml", "tags"]
     /// Names new pages can't take: reserved ones plus Home's and Template's.
     static let unavailablePageSlugs = reservedSlugs.union([ContentItem.homeSlug, ContentItem.templateSlug, ContentItem.searchSlug])
+
+    /// Names new pages can't take in this site: the fixed ones, and each
+    /// collection's address folders.
+    var unavailableSlugs: Set<String> {
+        Site.unavailablePageSlugs.union(config.collections.flatMap { [$0.id, ContentCollection.itemFolder($0.id)] })
+    }
 
     static func isSite(_ url: URL) -> Bool {
         FileManager.default.fileExists(atPath: url.appending(path: configFile).path)
@@ -591,7 +520,7 @@ struct Site: Sendable {
         } catch {
             throw SiteError("“\(root.lastPathComponent)” isn't a CardStock site. It has no site.json.")
         }
-        let config: SiteConfig
+        var config: SiteConfig
         do {
             config = try JSONDecoder().decode(SiteConfig.self, from: data)
         } catch {
@@ -599,8 +528,12 @@ struct Site: Sendable {
         }
 
         let items = try loadItems(root: root)
+        if config.storedCollections == nil {
+            config.collections = ContentCollection.defaults(for: items)
+        }
         return Site(root: root, config: config, items: sorted(items), theme: ThemeSettings.load(from: root),
-                    webFonts: loadWebFonts(from: root), layouts: PageLayout.load(root: root))
+                    webFonts: loadWebFonts(from: root), layouts: PageLayout.load(root: root),
+                    mediaTags: MediaTags.load(from: root))
     }
 
     static func loadItems(root: URL) throws -> [ContentItem] {

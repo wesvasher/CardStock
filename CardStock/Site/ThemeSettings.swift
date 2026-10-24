@@ -75,8 +75,24 @@ struct ThemeSettings: Codable, Equatable, Sendable {
     /// Corner radius in pixels: the starting point for each component's
     /// corners (Configuration → Components → Apply to All).
     var radius: Double = 8
-    /// Width of the text column in rem.
-    var contentWidth: Double = 40
+    /// Width of the content container (top bar, page and footer) in rem
+    /// (16 px each). Configuration → Layout.
+    var contentWidth: Double = 60
+    /// Space between the content and the window's edges, in pixels.
+    var gutter: Double = 20
+    /// The top bar and footer span the whole window instead of the content width.
+    var fullWidthBars = false
+
+    /// Common content widths in pixels, for Configuration → Layout.
+    static let popularContentWidths: [(px: Int, name: String)] = [
+        (640, "Narrow, for reading"),
+        (720, "Article"),
+        (768, "Tablet"),
+        (960, "Classic (default)"),
+        (1140, "Wide"),
+        (1280, "Extra wide"),
+        (1440, "Desktop"),
+    ]
     var customFonts: [CustomFont] = []
 
     // Components. Corner radii default to `radius` times each one's
@@ -269,6 +285,8 @@ struct ThemeSettings: Codable, Equatable, Sendable {
         dark = try c.decodeIfPresent(Palette.self, forKey: .dark) ?? d.dark
         radius = try c.decodeIfPresent(Double.self, forKey: .radius) ?? d.radius
         contentWidth = try c.decodeIfPresent(Double.self, forKey: .contentWidth) ?? d.contentWidth
+        gutter = try c.decodeIfPresent(Double.self, forKey: .gutter) ?? d.gutter
+        fullWidthBars = try c.decodeIfPresent(Bool.self, forKey: .fullWidthBars) ?? d.fullWidthBars
         customFonts = try c.decodeIfPresent([CustomFont].self, forKey: .customFonts) ?? []
 
         // Settings saved before Components follow the old single radius.
@@ -410,6 +428,8 @@ struct ThemeSettings: Codable, Equatable, Sendable {
         css += "  --h1-size: \(Self.number(h1Size))px;\n"
         css += "  --radius: \(Self.number(radius))px;\n"
         css += "  --measure: \(Self.number(contentWidth))rem;\n"
+        css += "  --gutter: \(Self.number(max(gutter, 0)))px;\n"
+        css += "  --bar-width: \(fullWidthBars ? "none" : "var(--measure)");\n"
         css += componentVars
         switch appearance {
         case .auto:

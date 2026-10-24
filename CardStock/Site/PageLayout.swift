@@ -17,7 +17,9 @@ import Foundation
 /// `areas` are the places for the page's own text, filled in order by the
 /// sections between section breaks. Without breaks, all the text goes into
 /// the `main` area (the first area when not given). `types` lists the page
-/// types it suits; without it, every type.
+/// types it suits (`type:` values such as `page` or `post`, or `item`,
+/// `category` and `collection` for those pages of every collection);
+/// without it, every type.
 struct PageLayout: Identifiable, Equatable, Sendable {
     /// The file name without `.html`; what `layout:` holds.
     let id: String
@@ -25,7 +27,8 @@ struct PageLayout: Identifiable, Equatable, Sendable {
     var description: String
     var areas: [String]
     var mainArea: String
-    var types: [ContentKind]
+    /// The `types` words, lowercased.
+    var types: [String]
     /// The template, without the description comment.
     var source: String
 
@@ -33,7 +36,19 @@ struct PageLayout: Identifiable, Equatable, Sendable {
     /// The line that splits a page's Markdown into sections.
     static let sectionBreak = "<!-- section -->"
 
-    func suits(_ kind: ContentKind) -> Bool { types.isEmpty || types.contains(kind) }
+    func suits(_ kind: ContentKind) -> Bool {
+        types.isEmpty || types.contains { Self.word($0, matches: kind) }
+    }
+
+    /// True when a `types` word covers a kind of page.
+    static func word(_ word: String, matches kind: ContentKind) -> Bool {
+        switch word {
+        case "item", "items": kind.isItem
+        case "category", "categories": kind.isCategory
+        case "collection", "main": kind.isMain
+        default: ContentKind(rawValue: word) == kind
+        }
+    }
 
     init(id: String, source: String) {
         self.id = id
@@ -41,7 +56,7 @@ struct PageLayout: Identifiable, Equatable, Sendable {
         var description = ""
         var areas: [String] = []
         var main = ""
-        var types: [ContentKind] = []
+        var types: [String] = []
         var body = source
         let trimmed = source.drop { $0.isWhitespace }
         if trimmed.hasPrefix("<!--"), let end = trimmed.range(of: "-->") {
@@ -56,7 +71,7 @@ struct PageLayout: Identifiable, Equatable, Sendable {
                 case "description": description = value
                 case "areas": areas = list
                 case "main": main = value
-                case "types": types = list.compactMap { ContentKind(rawValue: $0.lowercased()) }
+                case "types": types = list.map { $0.lowercased() }
                 default: break
                 }
             }

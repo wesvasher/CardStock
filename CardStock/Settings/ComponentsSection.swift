@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Configuration → Components: the page width and the look of each building
+/// Configuration → Components: the look of each building
 /// block of a page (buttons, cards, images, code blocks, quotes, tables and
 /// drop-down menus). Saved in theme/theme.json as CSS variables.
 struct ComponentsSection: View {
@@ -8,10 +8,6 @@ struct ComponentsSection: View {
 
     var body: some View {
         Section {
-            LabeledContent("Content width") {
-                // Stored in rem; shown in px (16 px per rem).
-                NudgeSlider(value: $theme.contentWidth, range: 30...60, display: { $0 * 16 })
-            }
             LabeledContent("Corner radius") {
                 NudgeSlider(value: $theme.radius, range: 0...24)
             }
@@ -23,9 +19,9 @@ struct ComponentsSection: View {
                 .help("Sets the corners of buttons, cards, cover images, code blocks and menus from this radius")
             }
         } header: {
-            Text("Page")
+            Text("Corners")
         } footer: {
-            caption("Content width is how wide the text column is. The corner radius is the starting point for every component's corners; change each one below.")
+            caption("The starting point for every component's corners; change each one below. Page width is on the Layout page.")
         }
 
         Section {

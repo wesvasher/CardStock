@@ -311,7 +311,7 @@ private struct FlowingTags: View {
 }
 
 /// Lays children out in rows, wrapping when a row is full.
-private struct FlowLayout: Layout {
+struct FlowLayout: Layout {
     var spacing: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

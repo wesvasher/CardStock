@@ -1,0 +1,13 @@
+<article class="item item-{{ collection.id }}{{#if collection.selling}} product{{/if}}">
+  <header>
+    <h1>{{ item.title }}</h1>
+    {{{ item.meta }}}
+  </header>
+  {{{ item.videoEmbed }}}
+  {{#if item.cover}}<img class="cover" src="{{ item.cover }}" alt="">{{/if}}
+  <div class="content">
+{{{ item.content }}}
+  </div>
+  {{{ item.actions }}}
+  {{{ item.pager }}}
+</article>

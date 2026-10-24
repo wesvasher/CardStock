@@ -6,8 +6,6 @@ struct EditorView: View {
     @Environment(AppModel.self) private var model
     let item: ContentItem
 
-    @State private var tagsText = ""
-    @FocusState private var tagsFocused: Bool
     @State private var editor = MarkdownEditorController()
     @State private var pendingImages: PendingImages?
     @State private var showFilePicker = false
@@ -21,11 +19,6 @@ struct EditorView: View {
         } message: {
             Text(deleteMessage)
         }
-        .onAppear { tagsText = item.frontMatter.list("tags").joined(separator: ", ") }
-        .onChange(of: tagsFocused) { _, focused in
-            if !focused { commitTags() }
-        }
-        .onDisappear(perform: commitTags)
         .sheet(isPresented: $showFilePicker) {
             InsertFromFilesSheet { file in
                 editor.insertBlocks([MediaLibrary.markdown(for: file)])
@@ -48,6 +41,7 @@ struct EditorView: View {
 
                 Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 8) {
                     let kind = current.kind
+                    let collection = config.collection(for: kind)
                     GridRow {
                         label("Type")
                         if current.isFixedPage {
@@ -56,18 +50,24 @@ struct EditorView: View {
                                  : current.isSearchPage ? "Search page: a search field and results, below this text"
                                  : "Template: every part of your style, for the preview")
                                 .foregroundStyle(.secondary)
+                        } else if kind.isMain, let collection {
+                            HStack(spacing: 8) {
+                                Label("\(collection.name) main page", systemImage: "list.bullet.rectangle")
+                                    .foregroundStyle(.secondary)
+                                Button("Collection Settings…") { showCollection(collection) }
+                                    .buttonStyle(.link)
+                                    .controlSize(.small)
+                            }
                         } else {
                             VStack(alignment: .leading, spacing: 3) {
-                                Picker("Type", selection: binding(\.kind)) {
-                                    ForEach(ContentKind.allCases) { kind in
-                                        Label(kind.singularName, systemImage: kind.systemImage).tag(kind)
-                                    }
+                                Picker("Type", selection: kindBinding) {
+                                    PageKindOptions.options(config, current: kind)
                                 }
                                 .labelsHidden()
                                 .fixedSize()
                                 // Link menus are explained in the Help Center instead.
                                 if kind != .links {
-                                    Text(kind.summary)
+                                    Text(config.summary(kind))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                         .fixedSize(horizontal: false, vertical: true)
@@ -91,45 +91,57 @@ struct EditorView: View {
                                     .foregroundStyle(.secondary)
                                     .textSelection(.enabled)
                                 Spacer()
-                                if !current.isHome && !current.isTemplatePage && !current.isSearchPage {
+                                if !current.isHome && !current.isTemplatePage && !current.isSearchPage && !kind.isMain {
                                     Toggle("Draft", isOn: binding(\.isDraft))
                                 }
                             }
                         }
                     }
-                    if kind == .post {
-                        GridRow {
-                            label("Date")
-                            DatePicker("Date", selection: dateBinding, displayedComponents: .date)
-                                .labelsHidden()
-                                .fixedSize()
+                    if kind.isItem, let collection {
+                        if collection.dated {
+                            GridRow {
+                                label("Date")
+                                DatePicker("Date", selection: dateBinding, displayedComponents: .date)
+                                    .labelsHidden()
+                                    .fixedSize()
+                            }
+                        }
+                        if collection.selling {
+                            GridRow {
+                                label("Price")
+                                TextField("$24.00", text: field("price"))
+                            }
+                            GridRow {
+                                label("Buy link")
+                                TextField("Checkout link from Stripe, Gumroad, Etsy, Shopify or PayPal", text: field("buy"))
+                            }
+                            GridRow {
+                                label("Button")
+                                TextField("Buy Now", text: field("buyLabel"))
+                            }
+                        }
+                        if collection.video {
+                            GridRow {
+                                label("Video")
+                                TextField("YouTube or Vimeo link, or a video file like /media/files/clip.mp4", text: field("video"))
+                            }
+                        }
+                        if collection.categories {
+                            GridRow {
+                                label("Categories")
+                                CategoryPicker(item: current, collection: collection)
+                            }
                         }
                     }
-                    if kind == .product {
-                        GridRow {
-                            label("Price")
-                            TextField("$24.00", text: field("price"))
-                        }
-                        GridRow {
-                            label("Buy link")
-                            TextField("Checkout link from Stripe, Gumroad, Etsy, Shopify or PayPal", text: field("buy"))
-                        }
-                        GridRow {
-                            label("Button")
-                            TextField("Buy Now", text: field("buyLabel"))
-                        }
-                    }
-                    if let categoryKind = kind.categoryKind {
-                        GridRow {
-                            label("Categories")
-                            CategoryPicker(item: current, categoryKind: categoryKind)
-                        }
-                    }
-                    if let memberKind = kind.memberKind {
+                    if kind.isCategory || kind.isMain, let collection {
                         GridRow {
                             label("Lists")
-                            let count = model.site?.items(memberKind).filter { $0.categories.contains(current.slug) }.count ?? 0
-                            Text("\(count) \(count == 1 ? memberKind.singularName.lowercased() : memberKind.pluralName.lowercased()) in this category. Choose categories on each \(memberKind.singularName.lowercased()).")
+                            let items = model.site?.items(collection.itemKind) ?? []
+                            let count = kind.isMain ? items.count : items.filter { $0.categories.contains(current.slug) }.count
+                            let noun = (count == 1 ? collection.itemName : collection.itemsName).lowercased()
+                            Text(kind.isMain
+                                 ? "Every \(collection.itemName.lowercased()) in \(collection.name) (\(count) \(noun)), \(collection.sort.title.lowercased())."
+                                 : "\(count) \(noun) in this category. Choose categories on each \(collection.itemName.lowercased()).")
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -140,18 +152,15 @@ struct EditorView: View {
                             TextField("Short description for lists and search engines", text: field("summary"), axis: .vertical)
                                 .lineLimit(1...3)
                         }
-                        if kind == .post {
-                            GridRow {
-                                label("Tags")
-                                TextField("Comma-separated", text: $tagsText)
-                                    .focused($tagsFocused)
-                                    .onSubmit(commitTags)
-                            }
-                        }
                         GridRow {
                             label("Cover")
                             TextField("/media/image.jpg", text: field("cover"))
                         }
+                    }
+                    // Every page can have tags.
+                    GridRow {
+                        label("Tags")
+                        TagEditor(tags: binding(\.tags), suggestions: model.site?.tagIndex().map(\.name) ?? [])
                     }
                 }
                 .textFieldStyle(.roundedBorder)
@@ -191,12 +200,16 @@ struct EditorView: View {
                 }
                 .buttonStyle(.plain)
                 .glassEffect(.regular.interactive(), in: .capsule)
-                .help("Move this \(current.kind.singularName.lowercased()) to your Mac's Trash")
+                .help("Move this \(config.singularName(current.kind).lowercased()) to your Mac's Trash")
             } else {
                 Label(current.isHome
                       ? "Every site needs a Home page, so it can't be deleted."
                       : current.isNotFoundPage
                       ? "Every site needs a page for broken links, so it can't be deleted."
+                      : current.isSearchPage
+                      ? "The Search page shows search results, so it can't be deleted. Turn search off in Configuration → Search."
+                      : current.kind.isMain
+                      ? "A collection's main page goes when you delete the collection in Configuration → Collections."
                       : "The Template page shows your style in the preview, so it can't be deleted.",
                       systemImage: "lock")
                     .font(.caption)
@@ -243,6 +256,28 @@ struct EditorView: View {
 
     // MARK: - Bindings
 
+    private var config: SiteConfig { model.site?.config ?? SiteConfig() }
+
+    private func showCollection(_ collection: ContentCollection) {
+        model.configCollectionID = collection.id
+        model.showConfiguration(.collections)
+    }
+
+    /// The page's type. Becoming an item of a dated collection gives it
+    /// today's date when it has none.
+    private var kindBinding: Binding<ContentKind> {
+        Binding(
+            get: { current.kind },
+            set: { newValue in
+                var updated = current
+                updated.kind = newValue
+                if newValue.isItem, config.collection(for: newValue)?.dated == true, updated.date.isEmpty {
+                    updated.date = Self.isoDate.string(from: .now)
+                }
+                model.update(updated)
+            })
+    }
+
     /// Reads from the model's current copy of the item, so edits never
     /// overwrite each other.
     private var current: ContentItem {
@@ -284,17 +319,6 @@ struct EditorView: View {
                 updated.date = Self.isoDate.string(from: newValue)
                 model.update(updated)
             })
-    }
-
-    private func commitTags() {
-        guard current.kind == .post else { return }
-        let tags = tagsText.split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        var updated = current
-        guard updated.frontMatter.list("tags") != tags else { return }
-        updated.frontMatter["tags"] = tags.isEmpty ? nil : .list(tags)
-        model.update(updated)
     }
 }
 
@@ -366,16 +390,16 @@ private struct FormattingBar: View {
     }
 }
 
-/// The categories a blog post or product is in: a menu with a checkbox for
-/// each category page, and a way to make a new one.
+/// The categories an item is in: a menu with a checkbox for each of its
+/// collection's category pages, and a way to make a new one.
 private struct CategoryPicker: View {
     @Environment(AppModel.self) private var model
     let item: ContentItem
-    let categoryKind: ContentKind
+    let collection: ContentCollection
     @State private var isNaming = false
     @State private var newName = ""
 
-    private var categories: [ContentItem] { model.site?.items(categoryKind) ?? [] }
+    private var categories: [ContentItem] { model.site?.items(collection.categoryKind) ?? [] }
 
     private var summary: String {
         let names = item.categories.compactMap { slug in categories.first { $0.slug == slug }?.title }
@@ -395,17 +419,17 @@ private struct CategoryPicker: View {
                     }))
             }
             if !categories.isEmpty { Divider() }
-            Button("New \(categoryKind.singularName)…") { newName = ""; isNaming = true }
+            Button("New \(collection.categoryName)…") { newName = ""; isNaming = true }
         } label: {
             Text(summary)
         }
         .fixedSize()
-        .alert("New \(categoryKind.singularName)", isPresented: $isNaming) {
+        .alert("New \(collection.categoryName)", isPresented: $isNaming) {
             TextField("Name", text: $newName)
             Button("Cancel", role: .cancel) {}
             Button("Create") { create() }
         } message: {
-            Text("This \(item.kind.singularName.lowercased()) goes in it. Write the category page's text later in Pages.")
+            Text("This \(collection.itemName.lowercased()) goes in it. Write the category page's text later in Pages.")
         }
     }
 
@@ -414,7 +438,7 @@ private struct CategoryPicker: View {
         let name = newName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         let before = Set(model.site?.items.map(\.id) ?? [])
-        guard model.newItem(categoryKind, title: name, open: false) != nil,
+        guard model.newItem(collection.categoryKind, title: name, open: false) != nil,
               let category = model.site?.items.first(where: { !before.contains($0.id) })
         else { return }
         var updated = model.site?.items.first { $0.id == item.id } ?? item

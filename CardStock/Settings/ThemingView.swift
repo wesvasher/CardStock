@@ -23,6 +23,9 @@ struct ThemingView: View {
         if model.outdatedThemeFiles.contains("theme/template.html") {
             reasons.append("the Template page needs the updated version to show images and menus")
         }
+        if SiteRenderer.newerTemplateNames.contains(where: { model.outdatedThemeFiles.contains("theme/\($0).html") }) {
+            reasons.append("collections and tag pages need their page templates (until then CardStock uses its own)")
+        }
         if model.outdatedThemeFiles.contains("theme/home.html") {
             reasons.append("the home page needs the updated template to show your Home page text")
         }
@@ -56,7 +59,7 @@ struct ThemingView: View {
             }
 
             switch page {
-            case .site, .layouts:
+            case .site, .layouts, .collections, .tags:
                 EmptyView()
             case .templates:
                 StylesSection()

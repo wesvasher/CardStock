@@ -20,28 +20,26 @@ CardStock saves as you type. There's no Save button to remember. You can change 
 | Type | What it is | Address |
 |---|---|---|
 | Static Page | A page on its own, like About or Contact. Link to it from the menu, the footer or other pages | `/about/` |
-| Blog Post | Dated, listed newest first on the home page and in the RSS feed, and on the blog categories you choose | `/posts/my-trip/` |
-| Blog Category | Your text, then every blog post in that category, newest first | `/blog/travel/` |
-| Product | Something you sell: a price and a Buy button that goes to your checkout link | `/shop/blue-mug/` |
-| Shop Category | Your text, then every product in that category | `/shop/cups/` |
+| An item in a collection | A blog post, a product, a project, a video, … Each collection's items are listed on its main page | `/posts/my-trip/`, `/work/bridge/` |
+| A collection's category | Your text, then the items you put in that category | `/blog/travel/` |
 | Link Menu | A list of links for a drop-down menu in the footer. Not a page of its own | — |
 
-**Home**, the page for broken links (404) and **Template** are special static pages. Every site has them, and their type can't change. Template shows every part of your style in the preview and is never published. See [Change fonts, colors and layout](help:theming).
+The **Type** menu lists your collections by name, such as **Post** under Blog and **Product** under Shop. Set up collections (and add new ones, like a Portfolio or Videos) in [Collections](cardstock:collections). See [Collections](help:collections).
 
-When there's at least one product, `/shop/` lists them all. Add it to your menu in [Top Navigation Bar](cardstock:top-bar) in Configuration.
+**Home**, the page for broken links (404), **Search** and **Template** are special static pages. Every site has them, and their type can't change. Template shows every part of your style in the preview and is never published. See [Change fonts, colors and layout](help:theming). Each collection's **main page** is special too: it lists the collection's items under its own text, and goes away only when you delete the collection.
 
 ## Categories
 
-A blog post or product can be in several categories.
+An item can be in several categories of its collection.
 
-1. Make the category page first: a **Blog Category** for posts, a **Shop Category** for products. Its text shows above the list.
-2. On the post or product, click the **Categories** menu and tick the ones it belongs in. **New Blog Category…** (or **New Shop Category…**) in the same menu makes one without leaving the page.
+1. Make the category page first: choose the collection's category (like **Blog Category**) as the type, or click **New Category…** in [Collections](cardstock:collections). Its text shows above the list.
+2. On the item, click the **Categories** menu and tick the ones it belongs in. **New … Category…** in the same menu makes one without leaving the page.
 
-Category pages fill themselves in. Drafts are left out until you publish them.
+Category pages fill themselves in. Drafts are left out until you publish them. To group pages across collections, use [tags](help:tags).
 
 ## Selling with a Product page
 
-Your site is plain web pages, so it can't take payments itself. Make a checkout link with a service such as Stripe Payment Links, Gumroad, Etsy, Shopify or PayPal, and paste it into **Buy link**. The Buy button opens it in a new tab. **Button** changes the button's text; it says **Buy Now** if you leave it empty.
+Your site is plain web pages, so it can't take payments itself. Make a checkout link with a service such as Stripe Payment Links, Gumroad, Etsy, Shopify or PayPal, and paste it into **Buy link**. The Buy button opens it in a new tab. **Button** changes the button's text; it says **Buy Now** if you leave it empty. Any collection can sell: turn on **Price and Buy button** in its settings.
 
 ## The details above the text
 
@@ -50,18 +48,19 @@ Your site is plain web pages, so it can't take payments itself. Make a checkout 
 | Title | All | The heading and the name in lists |
 | Layout | All but Link Menu | How the page is arranged. See [Page layouts](help:layouts) |
 | Draft | All but Link Menu | Hides it from the published site. It still shows in the preview |
-| Date | Blog Post | Orders posts, newest first |
-| Price, Buy link, Button | Product | What it costs and where the Buy button goes |
-| Categories | Blog Post, Product | The category pages it's listed on |
+| Date | Items of dated collections | Orders items by time |
+| Price, Buy link, Button | Items of selling collections | What it costs and where the Buy button goes |
+| Video | Items of video collections | A YouTube or Vimeo link, or a video file, played at the top |
+| Categories | Items | The category pages it's listed on |
 | Summary | All but Link Menu | A short description for lists and search engines |
-| Tags | Blog Post | Comma-separated topics |
+| Tags | Most pages | Topics that group pages across collections. Type one and press Return, or pick one from the tag menu. See [Tags](help:tags) |
 | Cover | All but Link Menu | An image path such as `/media/posts/my-trip/beach.jpg` |
 
-> New blog posts start as **drafts**, so you can work on them before anyone sees them. Turn **Draft** off when the post is ready, then publish.
+> New items in dated collections, like blog posts, start as **drafts**, so you can work on them before anyone sees them. Turn **Draft** off when the post is ready, then publish.
 
 ## Delete a page
 
-Open it and click **Move to Trash…** at the bottom of the editor. The Markdown file goes to your Mac's Trash. Its images stay on the [Files](help:files) page until you delete them there. The Home page and the 404 page can't be deleted.
+Open it and click **Move to Trash…** at the bottom of the editor. The Markdown file goes to your Mac's Trash. Its images stay on the [Files](help:files) page until you delete them there. Home, the 404 page, Search, Template and collection main pages can't be deleted.
 
 ## Sites made before page types
 

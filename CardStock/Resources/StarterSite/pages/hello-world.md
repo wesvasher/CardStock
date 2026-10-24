@@ -11,6 +11,7 @@ Welcome to your new site. This post lives in `pages/hello-world.md`, like every 
 
 Write in **Markdown**: headings, lists, links, images and code blocks all work.
 
-- Blog posts appear on the home page, newest first, and on the blog categories you put them in, like [Notes](/blog/notes/).
+- Blog posts appear on the Home page and the Blog page, newest first, and on the blog categories you put them in, like [Notes](/blog/notes/).
 - Static pages like [About](/about/) stand on their own.
-- Change any page's type in the editor: static page, blog post, blog category, product, shop category or link menu.
+- The [Blog](/blog/) lists every post. Blog, Shop, Portfolio and Videos are *collections*; add and set them up in Configuration → Collections.
+- Tags like *meta* group pages across collections. Each tag has its own page, like [meta](/tags/meta/).

@@ -5,7 +5,7 @@ summary: Make the site look the way you want.
 order: 1
 ---
 
-Click **Configuration** in the sidebar. Below **Site Details**, the list has a page for each part of the look: **Template**, **Layouts** (see [Page layouts](help:layouts)), **Fonts**, **Colors**, **Top Navigation Bar**, **Footer**, **Components**, **Mailing List** (see [Add a mailing list sign-up](help:newsletter)) and **Search** (see [Add search to your site](help:search)). Click one to see its settings on the right.
+Click **Configuration** in the sidebar. Below **Site Details**, the list has a page for each part of the look: **Template**, **Layout** (page width, and see [Page layouts](help:layouts)), **Fonts**, **Colors**, **Top Navigation Bar**, **Footer**, **Components**, **Mailing List** (see [Add a mailing list sign-up](help:newsletter)) and **Search** (see [Add search to your site](help:search)). Click one to see its settings on the right.
 
 ## See your changes
 
@@ -112,7 +112,7 @@ To make another list, click **New Page…** in [Pages](cardstock:pages) and choo
 
 [Components](cardstock:components) sets the look of each building block of your pages. Watch the changes on the Template page in the preview.
 
-- **Page**: **Content width** is how wide the text column is. **Corner radius** is the starting point for every component's corners. **Apply Corners to All Components** sets them all from it.
+- **Corners**: **Corner radius** is the starting point for every component's corners. **Apply Corners to All Components** sets them all from it. (The page's width is on the [Layout](cardstock:layouts) page.)
 - **Buttons**: **Outline** or **Filled**, the corner radius, and the space inside. Buy buttons are always filled.
 - **Cards**: product cards' corner radius, padding, border and shadow.
 - **Image Corners**: rounding for cover images and for images in your text.

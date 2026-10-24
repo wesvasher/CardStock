@@ -33,7 +33,7 @@ struct LayoutTests {
         """)
         #expect(layout.name == "Big Hero" && layout.description == "A hero.")
         #expect(layout.areas == ["Intro", "Text"] && layout.mainArea == "Text")
-        #expect(layout.types == [.page, .post] && layout.suits(.post) && !layout.suits(.product))
+        #expect(layout.types == ["page", "post"] && layout.suits(.post) && !layout.suits(.product))
         #expect(layout.source == "<h1>{{ page.title }}</h1>")
 
         let plain = PageLayout(id: "two-columns", source: "<div></div>")

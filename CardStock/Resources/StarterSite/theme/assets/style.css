@@ -12,7 +12,9 @@
   --font-size: 18px;
   --h1-size: 32px;
   --radius: 8px;
-  --measure: 40rem;
+  --measure: 60rem;
+  --gutter: 20px;
+  --bar-width: var(--measure);
   /* Top bar links. CardStock's Configuration → Top Navigation Bar overrides these. */
   --nav-font: var(--font-heading);
   --nav-size: 0.95rem;
@@ -76,11 +78,15 @@ body {
 a { color: var(--accent); text-underline-offset: 0.15em; }
 img { max-width: 100%; height: auto; }
 
+/* The content container. Configuration → Layout sets its width (--measure),
+   the space at the window's edges (--gutter), and whether the top bar and
+   footer match it or span the window (--bar-width). */
 .site-header, main, .site-footer {
   max-width: var(--measure);
   margin: 0 auto;
-  padding: 0 1.25rem;
+  padding: 0 var(--gutter);
 }
+.site-header, .site-footer { max-width: var(--bar-width); }
 /* Three slots: left, center and right. Each holds a group of links, and
    the logo and title sit in whichever one Configuration → Top Navigation Bar picks.
    The side slots share the spare room equally (so the center stays centered when

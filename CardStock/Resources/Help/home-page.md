@@ -2,7 +2,7 @@
 title: Edit the Home page
 category: Writing
 summary: Change what visitors see first.
-order: 3
+order: 5
 ---
 
 The Home page is the first page in [Pages](cardstock:pages). You can also open it from the **Edit Home Page** tile on the Start screen.

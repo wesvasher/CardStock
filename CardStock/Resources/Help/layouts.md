@@ -12,11 +12,19 @@ A layout decides how a page is arranged: where the title goes, how wide the text
 1. Open the page in [Pages](cardstock:pages).
 2. Pick one from **Layout**, under **Type**. The preview changes straight away.
 
-**Standard** is each page type's normal design. Every page uses it until you pick something else. Blog post dates, product prices and Buy buttons, and the lists on category pages show in every layout.
+**Standard** is each page type's normal design. Every page uses it until you pick something else. An item's date, price and Buy button, and the lists on collection main pages and categories, show in every layout.
 
 ## The layouts
 
-See them all in [Layouts](cardstock:layouts) in Configuration. Click one to preview a sample page in it.
+See them all in [Layout](cardstock:layouts) in Configuration. Click one to preview a sample page in it.
+
+## Page width
+
+The **Page** section at the top of [Layout](cardstock:layouts) applies to every page:
+
+- **Content width**: the most the top bar, page and footer spread across a wide window. Pick a common width, such as **960 px** (the default), **640 px** for easy reading or **1140 px** for a wide site, or choose **Custom** and type any width in pixels. Narrower windows, like phones, always use their whole width.
+- **Side padding**: the space kept at the window's edges.
+- **Top bar and footer**: **Match Content** keeps them at the content width; **Full Width** lets them reach the window's edges.
 
 | Layout | What it does | Areas |
 |---|---|---|

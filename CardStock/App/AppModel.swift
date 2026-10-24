@@ -52,6 +52,21 @@ final class AppModel {
     var configPage: ConfigPage = .site
     /// The layout previewed on Configuration → Layouts (empty: Standard).
     var previewLayoutID = ""
+    /// The collection shown on Configuration → Collections (and previewed).
+    var configCollectionID = ""
+    /// The tag previewed on Configuration → Tags (empty: the list of tags).
+    var previewTagSlug = ""
+
+    /// Configuration → Collections' preview: the chosen collection's main page.
+    var previewCollectionPath: String {
+        let collections = site?.config.collections ?? []
+        return (collections.first { $0.id == configCollectionID } ?? ContentCollection.alphabetical(collections).first)?.mainPath
+            ?? SiteRenderer.templatePagePath
+    }
+
+    var previewTagPath: String {
+        previewTagSlug.isEmpty ? TagSettings.path : TagSettings.path(previewTagSlug)
+    }
 
     var selectedPage: ContentItem? {
         guard let selectedPageID else { return nil }
@@ -584,7 +599,7 @@ final class AppModel {
         }
         var outdated: [String] = []
         let css = read("theme/assets/style.css")
-        if !(css.contains("var(--font-body)") && css.contains("var(--h1-size)") && css.contains(".content small") && css.contains(".site-footer .rss") && css.contains(".footer-logo-row") && css.contains(".footer-menu") && css.contains(".button.buy") && css.contains(".footer-row") && css.contains("--dot-size") && css.contains(".site-bar") && css.contains(".bar-slot") && css.contains("var(--button-radius)") && css.contains("var(--nav-size)") && css.contains("var(--nav-pressed)") && css.contains("a.nav-button") && css.contains("var(--navbtn-icon)") && css.contains(".nav-overlay")) {
+        if !(css.contains("var(--font-body)") && css.contains("var(--h1-size)") && css.contains(".content small") && css.contains(".site-footer .rss") && css.contains(".footer-logo-row") && css.contains(".footer-menu") && css.contains(".button.buy") && css.contains(".footer-row") && css.contains("--dot-size") && css.contains(".site-bar") && css.contains(".bar-slot") && css.contains("var(--button-radius)") && css.contains("var(--nav-size)") && css.contains("var(--nav-pressed)") && css.contains("a.nav-button") && css.contains("var(--navbtn-icon)") && css.contains(".nav-overlay") && css.contains("var(--gutter)")) {
             outdated.append("theme/assets/style.css")
         }
         if !read("theme/home.html").contains("page.content") {
@@ -609,17 +624,19 @@ final class AppModel {
         outdatedThemeFiles = outdated
     }
 
-    /// Makes a new item and selects it. Returns its address.
+    /// Makes a new page and (unless `open` is false) opens it. Returns its
+    /// address. Items of dated collections get today's date and start as
+    /// drafts; items start in their collection's item layout.
     @discardableResult
-    /// Makes a new page and (unless `open` is false) opens it.
     func newItem(_ kind: ContentKind, title: String, open: Bool = true) -> String? {
-        guard let root = site?.root else { return nil }
-        let folder = root.appending(path: ContentKind.folder)
+        guard let site else { return nil }
+        let folder = site.root.appending(path: ContentKind.folder)
         let base = Site.slugify(title)
+        let unavailable = site.unavailableSlugs
         var slug = base
         var n = 2
         while FileManager.default.fileExists(atPath: folder.appending(path: "\(slug).md").path)
-                || Site.unavailablePageSlugs.contains(slug) {
+                || unavailable.contains(slug) {
             slug = "\(base)-\(n)"
             n += 1
         }
@@ -627,27 +644,151 @@ final class AppModel {
         var fm = FrontMatter()
         fm["title"] = .string(title)
         if kind != .page { fm["type"] = .string(kind.rawValue) }
-        if kind == .post {
-            fm["date"] = .string(Self.today())
-            fm["draft"] = .bool(true)
+        if kind.isItem, let collection = site.collection(for: kind) {
+            if collection.dated {
+                fm["date"] = .string(Self.today())
+                fm["draft"] = .bool(true)
+            }
+            if !collection.itemLayout.isEmpty { fm["layout"] = .string(collection.itemLayout) }
         }
         let linkMenu = kind == .links
-        let url = folder.appending(path: "\(slug).md")
+        return write(fm, body: linkMenu ? LinkMenu.starterBody + "\n" : "", to: folder.appending(path: "\(slug).md"),
+                     open: open) ? kind.path(for: slug) : nil
+    }
+
+    /// Writes a new page file, adds it to the site and (optionally) opens it.
+    private func write(_ fm: FrontMatter, body: String, to url: URL, open: Bool) -> Bool {
         do {
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            try FrontMatter.serialize(fm, body: linkMenu ? LinkMenu.starterBody + "\n" : "").write(to: url, atomically: true, encoding: .utf8)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FrontMatter.serialize(fm, body: body).write(to: url, atomically: true, encoding: .utf8)
             let text = try String(contentsOf: url, encoding: .utf8)
             // Build the new list first: reading and writing `site` in one
             // statement is an exclusive-access violation.
-            let items = Site.sorted((site?.items ?? []) + [ContentItem(fileURL: url, text: text)])
+            let items = Site.sorted((site?.items ?? []).filter { $0.id != url } + [ContentItem(fileURL: url, text: text)])
             site?.items = items
             if open { selection = .item(url) }
             revision += 1
-            return kind.path(for: slug)
+            return true
         } catch {
             errorMessage = error.localizedDescription
-            return nil
+            return false
         }
+    }
+
+    // MARK: - Collections
+
+    /// Adds a collection and its main page (pages/<id>.md), and lets search
+    /// find its pages.
+    func addCollection(_ collection: ContentCollection) {
+        guard var config = site?.config, let root = site?.root else { return }
+        config.collections.append(collection)
+        if !config.search.kinds.contains(collection.itemType) { config.search.kinds.append(collection.itemType) }
+        updateConfig(config)
+        saveNow()
+        let url = root.appending(path: "\(ContentKind.folder)/\(collection.id).md")
+        if !FileManager.default.fileExists(atPath: url.path) {
+            var fm = FrontMatter()
+            fm["type"] = .string(ContentKind.mainType)
+            fm["title"] = .string(collection.name)
+            _ = write(fm, body: "", to: url, open: false)
+        }
+        configCollectionID = collection.id
+    }
+
+    /// Ensures a collection's main page has a file, then opens it to edit
+    /// its title and text.
+    func openMainPage(of collection: ContentCollection) {
+        guard let site else { return }
+        if let page = site.mainPage(of: collection) {
+            selection = .item(page.id)
+            return
+        }
+        var fm = FrontMatter()
+        fm["type"] = .string(ContentKind.mainType)
+        fm["title"] = .string(collection.name)
+        _ = write(fm, body: "", to: site.root.appending(path: "\(ContentKind.folder)/\(collection.id).md"), open: true)
+    }
+
+    /// Removes a collection. Its pages stay, as static pages (the main page
+    /// keeps its address; items and categories move to /<name>/).
+    func removeCollection(_ id: String) {
+        guard var config = site?.config, let items = site?.items else { return }
+        for var item in items where item.kind.collectionID == id {
+            item.kind = .page
+            item.categories = []
+            update(item)
+        }
+        config.collections.removeAll { $0.id == id }
+        config.search.kinds.removeAll { $0 == ContentCollection.itemType(id) || $0 == ContentCollection.categoryType(id) }
+        updateConfig(config)
+        if configCollectionID == id { configCollectionID = config.collections.first?.id ?? "" }
+    }
+
+    // MARK: - Tags
+
+    /// Renames a tag on every page and in site.json. Renaming to a tag that
+    /// exists merges the two.
+    func renameTag(_ slug: String, to newName: String) {
+        let name = newName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, var config = site?.config, let items = site?.items else { return }
+        for var item in items where item.hasTag(slug) {
+            item.tags = item.tags(renaming: slug, to: name)
+            update(item)
+        }
+        config.tags.rename(slug, to: name)
+        updateConfig(config)
+        updateFileTags { $0.rename(slug, to: name) }
+        if previewTagSlug == slug { previewTagSlug = TagSettings.slug(name) }
+    }
+
+    /// Takes a tag off every page and out of site.json.
+    func deleteTag(_ slug: String) {
+        guard var config = site?.config, let items = site?.items else { return }
+        for var item in items where item.hasTag(slug) {
+            item.tags = item.tags.filter { TagSettings.slug($0) != slug }
+            update(item)
+        }
+        config.tags.list.removeAll { $0.slug == slug }
+        updateConfig(config)
+        updateFileTags { $0.remove(slug) }
+        if previewTagSlug == slug { previewTagSlug = "" }
+    }
+
+    /// Changes the tags on files in media/ and saves media.json right away.
+    func updateFileTags(_ change: (inout MediaTags) -> Void) {
+        guard var tags = site?.mediaTags, let root = site?.root else { return }
+        let before = tags
+        change(&tags)
+        guard tags != before else { return }
+        site?.mediaTags = tags
+        do {
+            try tags.save(to: root)
+        } catch {
+            errorMessage = "Couldn't save the file tags (media.json): \(error.localizedDescription)"
+        }
+        refreshFiles()
+        revision += 1
+        refreshStatus(fetch: false)
+    }
+
+    /// Adds and removes tags on files.
+    func changeTags(of files: [MediaFile], adding: [String], removing: [String]) {
+        updateFileTags { tags in
+            for file in files {
+                tags[file.path] = TagSettings.changing(tags[file.path], adding: adding, removing: removing)
+            }
+        }
+    }
+
+    /// Sets a tag's description (kept in site.json).
+    func setTagDescription(_ slug: String, name: String, description: String) {
+        guard var config = site?.config else { return }
+        if let i = config.tags.list.firstIndex(where: { $0.slug == slug }) {
+            config.tags.list[i].description = description
+        } else {
+            config.tags.list.append(.init(name: name, description: description))
+        }
+        updateConfig(config)
     }
 
     /// Moves an item's file to the Trash.
@@ -714,7 +855,13 @@ final class AppModel {
 
     /// Re-reads the media folder (and where each file is used).
     func refreshFiles() {
-        guard let site else { files = []; return }
+        guard var site else { files = []; return }
+        // media.json may have changed outside CardStock (Finder, another Mac).
+        let tags = MediaTags.load(from: site.root)
+        if tags != site.mediaTags {
+            self.site?.mediaTags = tags
+            site.mediaTags = tags
+        }
         let scanned = MediaLibrary.scan(site)
         if scanned != files { files = scanned }
     }
@@ -848,6 +995,7 @@ final class AppModel {
         guard let root = site?.root else { return }
         do {
             try MediaLibrary.moveToTrash(file, root: root)
+            if !file.tags.isEmpty { updateFileTags { $0[file.path] = [] } }
             showToast("Moved \(file.name) to the Trash.")
         } catch {
             errorMessage = "Couldn't move \(file.name) to the Trash: \(error.localizedDescription)"

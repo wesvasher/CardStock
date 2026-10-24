@@ -211,6 +211,16 @@ enum SiteInsights {
                                         action: .openItem($0.id))
                             }))
 
+        // Pages whose type names a collection site.json doesn't have.
+        let ids = Set(site.config.collections.map(\.id))
+        let orphans = site.items.filter { item in item.kind.collectionID.map { !ids.contains($0) } ?? false }
+        checks.append(Check(id: "collections", title: "Collections", passText: "Every page's collection is set up.",
+                            severity: .warning,
+                            problems: orphans.map {
+                                Problem(text: "“\($0.title)” is in a collection called “\($0.kind.collectionID!)” that isn't set up, so it uses standard settings",
+                                        action: .openItem($0.id))
+                            }))
+
         // Pages with a newsletter box but no sign-up form to show in it.
         let newsletterPages = site.config.newsletter.hasEmbed ? []
             : site.items.filter { !$0.isLinkMenu && SiteConfig.Newsletter.isUsed(in: $0.body) }
@@ -238,7 +248,7 @@ enum SiteInsights {
         var path = link
         if let cut = path.firstIndex(where: { $0 == "?" || $0 == "#" }) { path = String(path[..<cut]) }
         path = path.removingPercentEncoding ?? path
-        if path.isEmpty || ["/", "/index.html", "/shop/", "/shop/index.html", "/feed.xml", "/404.html"].contains(path) {
+        if path.isEmpty || ["/", "/index.html", "/feed.xml", "/404.html"].contains(path) {
             return .ok
         }
         let fm = FileManager.default
@@ -253,6 +263,21 @@ enum SiteInsights {
         if !page.hasSuffix("/") && !page.contains(".") { page += "/" }
         if let item = site.items.first(where: { $0.path == page }) {
             return item.isDraft ? .draft : .ok
+        }
+        // A collection's main page without a file is published once it has items.
+        let firstPart = page.split(separator: "/").first.map(String.init) ?? ""
+        if page == "/\(firstPart)/",
+           site.config.collection(firstPart) != nil || site.items.contains(where: { $0.kind.collectionID == firstPart }) {
+            let items = site.items(.item(firstPart))
+            return items.contains { !$0.isDraft } ? .ok : items.isEmpty ? .missing : .draft
+        }
+        if page.hasPrefix(TagSettings.path) {
+            guard site.config.tags.pages else { return .missing }
+            let slug = page.dropFirst(TagSettings.path.count).split(separator: "/").first.map(String.init)
+            let tags = site.tagIndex(includeDrafts: false).filter(\.isUsed)
+            guard let slug else { return tags.isEmpty ? .missing : .ok }
+            if tags.contains(where: { $0.slug == slug }) { return .ok }
+            return site.tagIndex().contains { $0.slug == slug && $0.isUsed } ? .draft : .missing
         }
         return .missing
     }

@@ -2,7 +2,7 @@
 title: Add search to your site
 category: Writing
 summary: A search page, plus search boxes you can put in any page.
-order: 6
+order: 8
 ---
 
 Every site has a **Search** page at `/search/`. Visitors type in its search field and matching pages show as they type, with the words they searched for highlighted. It works on its own: there's no search service, account or cost, and searches stay in the visitor's browser.

@@ -233,6 +233,7 @@ struct FilesView: View {
         let size = ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file)
         var parts = [size, file.folder]
         if file.added != .distantPast { parts.insert(file.added.formatted(date: .abbreviated, time: .omitted), at: 0) }
+        if !file.tags.isEmpty { parts.append(file.tags.map { "#" + $0 }.joined(separator: " ")) }
         return parts.joined(separator: " · ")
     }
 
@@ -339,8 +340,9 @@ struct FileRow<Actions: View>: View {
 
     private var details: String {
         let size = ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file)
-        guard file.added != .distantPast else { return size }
-        return "Added \(file.added.formatted(date: .abbreviated, time: .omitted)) · \(size)"
+        var text = file.added == .distantPast ? size : "Added \(file.added.formatted(date: .abbreviated, time: .omitted)) · \(size)"
+        if !file.tags.isEmpty { text += " · " + file.tags.map { "#" + $0 }.joined(separator: " ") }
+        return text
     }
 
     private var usagePill: some View {
@@ -450,7 +452,10 @@ enum FileFilter: String, CaseIterable, Hashable {
                 case .unused: file.usedIn.isEmpty
                 }
             }
-            .filter { query.isEmpty || $0.path.localizedCaseInsensitiveContains(query) }
+            .filter { file in
+                query.isEmpty || file.path.localizedCaseInsensitiveContains(query)
+                    || file.tags.contains { $0.localizedCaseInsensitiveContains(query) }
+            }
             .sorted { a, b in
                 switch sort {
                 case .newest: a.added != b.added ? a.added > b.added : a.name < b.name

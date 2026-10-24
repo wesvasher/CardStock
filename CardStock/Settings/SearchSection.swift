@@ -33,8 +33,8 @@ struct SearchSection: View {
 
         if config.search.enabled {
             Section {
-                ForEach([ContentKind.page, .post, .product, .blogCategory, .shopCategory], id: \.self) { kind in
-                    Toggle(kind.pluralName, isOn: Binding(
+                ForEach(config.kinds.filter { $0 != .links }, id: \.self) { kind in
+                    Toggle(config.pluralName(kind), isOn: Binding(
                         get: { config.search.includes(kind) },
                         set: { on in
                             config.search.kinds.removeAll { $0 == kind.rawValue }
@@ -44,7 +44,7 @@ struct SearchSection: View {
             } header: {
                 Text("Find")
             } footer: {
-                caption("Drafts are never found on your live site. Home, the 404 page and link menus are left out.")
+                caption("Drafts are never found on your live site. Home, the 404 page and link menus are left out. A collection's main page is found when its items are.")
             }
 
             Section("Search Field") {

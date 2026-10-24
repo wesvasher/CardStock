@@ -28,6 +28,14 @@ struct FilePreviewPane: View {
                 } description: {
                     Text(ByteCountFormatter.string(fromByteCount: selected.reduce(0) { $0 + $1.size }, countStyle: .file))
                 } actions: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Tags on all \(selected.count) files")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        FileTagEditor(files: selected)
+                    }
+                    .frame(maxWidth: 320)
+                    .padding(.bottom, 6)
                     Button("Copy Markdown for All") { model.copyMarkdown(for: selected) }
                     Button("Move \(selected.count) Files to Trash…", role: .destructive) { pendingDelete = selected }
                 }
@@ -123,6 +131,10 @@ private struct SingleFilePreview: View {
                     row("Added", file.added.formatted(date: .long, time: .shortened))
                 }
                 row("Location", file.folder)
+                GridRow {
+                    Text("Tags").foregroundStyle(.secondary).gridColumnAlignment(.trailing)
+                    FileTagEditor(files: [file])
+                }
                 GridRow {
                     Text("Used on").foregroundStyle(.secondary).gridColumnAlignment(.trailing)
                     if file.usedIn.isEmpty {
@@ -303,5 +315,34 @@ private struct QuickLookPreview: NSViewRepresentable {
         if (view.previewItem as? NSURL) as URL? != url {
             view.previewItem = url as NSURL
         }
+    }
+}
+
+/// Tags on one or more files. With several, it shows the tags they all
+/// have; adding or removing one changes every file.
+struct FileTagEditor: View {
+    @Environment(AppModel.self) private var model
+    let files: [MediaFile]
+
+    /// The files as they are now (the list refreshes after each change).
+    private var current: [MediaFile] {
+        files.map { file in model.files.first { $0.id == file.id } ?? file }
+    }
+
+    private var common: [String] {
+        guard let first = current.first else { return [] }
+        return first.tags.filter { tag in current.allSatisfy { $0.tags.contains { TagSettings.slug($0) == TagSettings.slug(tag) } } }
+    }
+
+    var body: some View {
+        TagEditor(tags: Binding(
+            get: { common },
+            set: { new in
+                let old = common
+                let added = new.filter { tag in !old.contains { TagSettings.slug($0) == TagSettings.slug(tag) } }
+                let removed = old.filter { tag in !new.contains { TagSettings.slug($0) == TagSettings.slug(tag) } }
+                model.changeTags(of: current, adding: added, removing: removed)
+            }), suggestions: model.site?.tagIndex().map(\.name) ?? [])
+            .controlSize(.small)
     }
 }

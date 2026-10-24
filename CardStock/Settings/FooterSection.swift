@@ -311,13 +311,21 @@ struct LinkRow: View {
     private var pageMenu: some View {
         Menu {
             Button("Home") { choose("/", title: model.site?.home?.title ?? "Home") }
-            if !(model.site?.items(.product).isEmpty ?? true) {
-                Button("Shop") { choose("/shop/", title: "Shop") }
+            let config = model.site?.config ?? SiteConfig()
+            if !config.collections.isEmpty {
+                Section("Collections") {
+                    ForEach(config.collections) { c in
+                        Button(c.name) { choose(c.mainPath, title: model.site?.mainPage(of: c)?.title ?? c.name) }
+                    }
+                }
             }
-            ForEach(ContentKind.allCases.filter { $0 != .links }, id: \.self) { kind in
+            if config.tags.pages {
+                Button("Tags") { choose(TagSettings.path, title: "Tags") }
+            }
+            ForEach(config.kinds.filter { $0 != .links }, id: \.self) { kind in
                 let pages = (model.site?.items(kind) ?? []).filter { !$0.isHome && !$0.isTemplatePage }
                 if !pages.isEmpty {
-                    Section(kind.pluralName) {
+                    Section(config.pluralName(kind)) {
                         ForEach(pages) { page in
                             Button(page.isDraft ? "\(page.title) (draft)" : page.title) {
                                 choose(page.path, title: page.title)

@@ -13,6 +13,8 @@ struct MediaFile: Identifiable, Hashable, Sendable {
     var added: Date
     /// Titles of the pages, posts and projects that use it.
     var usedIn: [String]
+    /// Its tags (media.json).
+    var tags: [String] = []
 
     var id: String { path }
     var name: String { (path as NSString).lastPathComponent }
@@ -60,6 +62,7 @@ enum MediaLibrary {
                 file.size += smallInfo.size
             }
             file.usedIn = file.allPaths.flatMap { usage[$0] ?? [] }.uniqued()
+            file.tags = site.mediaTags[path]
             files.append(file)
         }
         return files.sorted { $0.added != $1.added ? $0.added > $1.added : $0.path < $1.path }

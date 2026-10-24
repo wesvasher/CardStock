@@ -11,10 +11,11 @@ struct SiteRenderer: Sendable {
     private let layoutTemplates: [String: Template]
 
     /// Templates every theme has.
-    static let templateNames = ["base", "home", "post", "page"]
-    /// Templates added with page types. A theme without them uses
-    /// CardStock's built-in versions.
-    static let newerTemplateNames = ["blog-category", "product", "shop-category", "shop"]
+    static let templateNames = ["base", "home", "page"]
+    /// Templates added later: collection main and category pages, item
+    /// pages and tag pages. A theme without them uses CardStock's built-in
+    /// versions.
+    static let newerTemplateNames = ["collection", "item", "tags"]
     /// The Template page (pages/template.md): every part of the style on one
     /// page, for the preview. Never published.
     static let templatePageTemplate = "template"
@@ -67,13 +68,19 @@ struct SiteRenderer: Sendable {
     /// Every path the site publishes.
     var paths: [String] {
         var paths = ["/", "/feed.xml"]
-        if !published(.product).isEmpty { paths.append("/shop/") }
-        for kind in ContentKind.allCases where kind != .links {
-            // Link menus only appear inside the footer; the Template page
-            // only in the preview.
-            paths += published(kind)
-                .filter { !$0.isHome && !$0.isTemplatePage && !($0.isSearchPage && !site.config.search.enabled) }
-                .map(\.path)
+        // Link menus only appear inside the footer; the Template page
+        // only in the preview.
+        for item in site.items where item.kind != .links && (includeDrafts || !item.isDraft)
+            && !item.isHome && !item.isTemplatePage && !(item.isSearchPage && !site.config.search.enabled) {
+            paths.append(item.path)
+        }
+        // Main pages without a file of their own, once there's something to list.
+        for c in allCollections where site.mainPage(of: c) == nil && !items(of: c).isEmpty {
+            paths.append(c.mainPath)
+        }
+        if site.config.tags.pages {
+            let tags = publishedTags
+            if !tags.isEmpty { paths += [TagSettings.path] + tags.map(\.path) }
         }
         if site.config.search.enabled { paths.append(Self.searchIndexPath) }
         return paths
@@ -84,8 +91,6 @@ struct SiteRenderer: Sendable {
         switch path {
         case "/", "/index.html":
             return renderHome()
-        case "/shop/", "/shop/index.html":
-            return renderList("shop", key: "products", items: published(.product), path: "/shop/", title: "Shop")
         case "/feed.xml":
             return renderFeed()
         case Self.templatePagePath where !site.items.contains(where: \.isTemplatePage):
@@ -105,32 +110,36 @@ struct SiteRenderer: Sendable {
             return render(layoutSample(id == "standard" ? "" : id))
         default:
             let normalized = path.hasSuffix("/index.html") ? String(path.dropLast("index.html".count)) : path
-            let candidates = ContentKind.allCases.flatMap(published)
-            guard let item = candidates.first(where: { $0.path == normalized }) else { return nil }
-            return render(item)
+            if normalized.hasPrefix(TagSettings.path), site.config.tags.pages || includeDrafts {
+                let slug = normalized.dropFirst(TagSettings.path.count).split(separator: "/").first.map(String.init)
+                return renderTag(slug)
+            }
+            if let item = site.items.first(where: { (includeDrafts || !$0.isDraft) && $0.path == normalized }) {
+                return render(item)
+            }
+            if let c = allCollections.first(where: { $0.mainPath == normalized }),
+               site.mainPage(of: c) == nil, includeDrafts || !items(of: c).isEmpty {
+                return render(mainPage(of: c))
+            }
+            return nil
         }
     }
 
     func render(_ item: ContentItem) -> String {
         if item.isHome { return renderHome(item) }
-        let value = itemValue(item)
-        let key: String
+        let collection = site.collection(for: item.kind)
         let template: String
         switch item.kind {
-        case .post: (key, template) = ("post", "post")
-        case .page where item.isTemplatePage: (key, template) = ("page", Self.templatePageTemplate)
-        case .page where item.isSearchPage: (key, template) = ("page", Self.searchTemplate)
-        case .page, .links: (key, template) = ("page", "page")
-        case .blogCategory: (key, template) = ("page", "blog-category")
-        case .product: (key, template) = ("product", "product")
-        case .shopCategory: (key, template) = ("page", "shop-category")
+        case .page where item.isTemplatePage: template = Self.templatePageTemplate
+        case .page where item.isSearchPage: template = Self.searchTemplate
+        case .page, .links: template = "page"
+        case .main, .category: template = "collection"
+        case .item: template = "item"
         }
         var context = globals(path: item.path, title: item.title, description: item.frontMatter.string("summary"))
-        if key == "page", case .dict(var page) = value, case .dict(let meta)? = context["page"] {
+        if case .dict(var page) = itemValue(item), case .dict(let meta)? = context["page"] {
             page.merge(meta) { itemField, _ in itemField }
             context["page"] = .dict(page)
-        } else {
-            context[key] = value
         }
         if item.isSearchPage {
             let search = site.config.search
@@ -140,15 +149,298 @@ struct SiteRenderer: Sendable {
                 "buttonLabel": .string(search.shownButtonLabel),
             ])
         }
-        // Category pages list their posts or products.
-        if let member = item.kind.memberKind {
-            let listed = members(of: item)
-            context[member == .post ? "posts" : "products"] = .list(listed.map(itemValue))
+        if let collection {
+            context["collection"] = collectionValue(collection)
+            switch item.kind {
+            case .main, .category:
+                // Main pages list every item; categories the ones put in them.
+                let listed = item.kind.isMain ? items(of: collection) : members(of: item)
+                context["items"] = .list(listed.map { cardValue($0, collection) })
+                context["listing"] = .string(listingHTML(listed, collection))
+                context["categoryNav"] = .string(categoryNavHTML(collection, current: item.path))
+            case .item:
+                context["item"] = itemPageValue(item, collection)
+            default:
+                break
+            }
         }
         if let layout = layout(for: item) {
             return renderLayout(item, layout, context: context)
         }
         return wrap(templates[template]!.render(.dict(context)), context: context)
+    }
+
+    // MARK: - Collections
+
+    /// The site's collections, plus stand-ins for any that pages name but
+    /// site.json doesn't have.
+    var allCollections: [ContentCollection] {
+        var list = site.config.collections
+        for item in site.items {
+            if let id = item.kind.collectionID, !list.contains(where: { $0.id == id }) {
+                list.append(.fallback(id))
+            }
+        }
+        return list
+    }
+
+    /// A collection's published items, in its order.
+    func items(of collection: ContentCollection) -> [ContentItem] {
+        Self.sorted(published(collection.itemKind), collection.sort)
+    }
+
+    static func sorted(_ items: [ContentItem], _ sort: ContentCollection.Sort) -> [ContentItem] {
+        func byTitle(_ a: ContentItem, _ b: ContentItem) -> Bool {
+            a.title.localizedStandardCompare(b.title) == .orderedAscending
+        }
+        switch sort {
+        case .newest: return items.sorted { $0.date != $1.date ? $0.date > $1.date : byTitle($0, $1) }
+        case .oldest: return items.sorted { $0.date != $1.date ? $0.date < $1.date : byTitle($0, $1) }
+        case .title: return items.sorted(by: byTitle)
+        }
+    }
+
+    /// A collection's main page: its file, or one made from its name.
+    func mainPage(of collection: ContentCollection) -> ContentItem {
+        site.mainPage(of: collection) ?? ContentItem(
+            fileURL: site.root.appending(path: "pages/\(collection.id).md"),
+            text: "---\ntitle: \(collection.name)\ntype: \(ContentKind.mainType)\n---\n")
+    }
+
+    /// Items listed on the Home page: those of every collection shown
+    /// there, newest first.
+    var homeItems: [ContentItem] {
+        let ids = Set(site.config.collections.filter(\.onHome).map(\.id))
+        return Self.sorted(site.items.filter { item in
+            guard case .item(let c) = item.kind else { return false }
+            return ids.contains(c) && (includeDrafts || !item.isDraft)
+        }, .newest)
+    }
+
+    private func collectionValue(_ c: ContentCollection) -> TemplateValue {
+        .dict([
+            "id": .string(c.id),
+            "name": .string(c.name),
+            "itemName": .string(c.itemName),
+            "itemsName": .string(c.itemsName),
+            "url": .string(c.mainPath),
+            "list": .bool(c.listStyle == .list),
+            "cards": .bool(c.listStyle == .cards),
+            "gallery": .bool(c.listStyle == .gallery),
+            "columns": .string(String(Self.columns(c))),
+            "selling": .bool(c.selling),
+            "emptyText": .string(c.shownEmptyText),
+        ])
+    }
+
+    private static func columns(_ c: ContentCollection) -> Int { min(max(c.columns, 1), 6) }
+
+    /// An item as a list entry, with only the fields the collection lists.
+    private func cardValue(_ item: ContentItem, _ c: ContentCollection) -> TemplateValue {
+        var dict: [String: TemplateValue] = [
+            "title": .string(item.title),
+            "url": .string(item.path),
+            "slug": .string(item.slug),
+            "draft": .bool(item.isDraft),
+        ]
+        if c.listDates && !item.date.isEmpty {
+            dict["date"] = .string(item.date)
+            dict["dateDisplay"] = .string(displayDate(item.date))
+        }
+        if c.listSummaries { dict["summary"] = .string(item.frontMatter.string("summary") ?? "") }
+        if c.listImages { dict["image"] = .string(listImage(item, c)) }
+        if c.selling { dict["price"] = .string(item.frontMatter.string("price") ?? "") }
+        return .dict(dict)
+    }
+
+    /// The picture for an item in lists: its cover, else its video's thumbnail.
+    private func listImage(_ item: ContentItem, _ c: ContentCollection) -> String {
+        let cover = item.frontMatter.string("cover") ?? ""
+        if !cover.isEmpty { return cover }
+        if c.video { return Self.videoThumbnail(item.frontMatter.string("video") ?? "") ?? "" }
+        return ""
+    }
+
+    /// An item page's values: everything `itemValue` has, plus `meta` (date,
+    /// categories and tags, and the price), `actions` (the Buy button),
+    /// `videoEmbed` and `pager`, each as HTML and empty when the collection
+    /// leaves it out. `cover` is empty when covers are off.
+    private func itemPageValue(_ item: ContentItem, _ c: ContentCollection) -> TemplateValue {
+        guard case .dict(var dict) = itemValue(item) else { return itemValue(item) }
+        dict["meta"] = .string(metaHTML(item))
+        dict["actions"] = .string(actionsHTML(item))
+        dict["videoEmbed"] = .string(c.video ? Self.videoEmbedHTML(item.frontMatter.string("video") ?? "") : "")
+        dict["pager"] = .string(pagerHTML(item, c))
+        if !c.showCover { dict["cover"] = .string("") }
+        return .dict(dict)
+    }
+
+    /// Links to the previous and next item, and to the main page.
+    private func pagerHTML(_ item: ContentItem, _ c: ContentCollection) -> String {
+        guard c.prevNext else { return "" }
+        let list = items(of: c)
+        let index = list.firstIndex { $0.id == item.id }
+        let before = index.flatMap { $0 > 0 ? list[$0 - 1] : nil }
+        let after = index.flatMap { $0 + 1 < list.count ? list[$0 + 1] : nil }
+        let (beforeLabel, afterLabel) = c.sort == .newest && c.dated ? ("Newer", "Older") : ("Previous", "Next")
+        func link(_ item: ContentItem?, _ label: String, _ cls: String) -> String {
+            guard let item else { return #"<span class="\#(cls)"></span>"# }
+            return #"<a class="\#(cls)" href="\#(escapeHTML(item.path))"><small>\#(label)</small>\#(escapeHTML(item.title))</a>"#
+        }
+        return #"<nav class="pager" aria-label="More \#(escapeHTML(c.itemsName.lowercased()))">"#
+            + link(before, beforeLabel, "prev")
+            + #"<a class="all" href="\#(escapeHTML(c.mainPath))">All \#(escapeHTML(c.itemsName.lowercased()))</a>"#
+            + link(after, afterLabel, "next") + "</nav>"
+    }
+
+    /// Items as the collection lists them: rows, cards or a gallery.
+    func listingHTML(_ items: [ContentItem], _ c: ContentCollection) -> String {
+        guard !items.isEmpty else { return #"<p class="empty">\#(escapeHTML(c.shownEmptyText))</p>"# }
+        let price = { (item: ContentItem) -> String in
+            let p = c.selling ? item.frontMatter.string("price") ?? "" : ""
+            return p.isEmpty ? "" : #"<p class="price">\#(escapeHTML(p))</p>"#
+        }
+        let summary = { (item: ContentItem) -> String in
+            let s = c.listSummaries ? item.frontMatter.string("summary") ?? "" : ""
+            return s.isEmpty ? "" : "<p>\(escapeHTML(s))</p>"
+        }
+        let date = { (item: ContentItem) -> String in
+            guard c.listDates, !item.date.isEmpty else { return "" }
+            return #"<time datetime="\#(escapeHTML(item.date))">\#(escapeHTML(displayDate(item.date)))</time>"#
+        }
+        let style = #"style="--cols:\#(Self.columns(c))""#
+        switch c.listStyle {
+        case .list:
+            let rows = items.map { item in
+                #"<li><a href="\#(escapeHTML(item.path))">\#(escapeHTML(item.title))</a> "# + date(item) + price(item) + summary(item) + "</li>"
+            }
+            return #"<ul class="post-list">"# + rows.joined() + "</ul>"
+        case .cards:
+            let cards = items.map { item in
+                var card = #"<a class="project-card" href="\#(escapeHTML(item.path))">"#
+                let image = c.listImages ? listImage(item, c) : ""
+                if !image.isEmpty { card += #"<img src="\#(escapeHTML(image))" alt="">"# }
+                card += "<h2>\(escapeHTML(item.title))</h2>" + price(item) + date(item) + summary(item)
+                return card + "</a>"
+            }
+            return #"<div class="project-grid collection-grid" \#(style)>"# + cards.joined() + "</div>"
+        case .gallery:
+            let tiles = items.map { item in
+                let image = listImage(item, c)
+                let picture = image.isEmpty ? #"<span class="gallery-blank"></span>"#
+                    : #"<img src="\#(escapeHTML(image))" alt="" loading="lazy">"#
+                return #"<a class="gallery-item" href="\#(escapeHTML(item.path))">"# + picture
+                    + "<span>\(escapeHTML(item.title))</span>" + date(item) + "</a>"
+            }
+            return #"<div class="collection-grid collection-gallery" \#(style)>"# + tiles.joined() + "</div>"
+        }
+    }
+
+    /// Links to the main page and each category, above a list.
+    private func categoryNavHTML(_ c: ContentCollection, current: String) -> String {
+        guard c.categories, c.listCategories else { return "" }
+        let categories = published(c.categoryKind)
+        guard !categories.isEmpty else { return "" }
+        func link(_ title: String, _ path: String) -> String {
+            let here = path == current ? #" aria-current="page""# : ""
+            return #"<li><a href="\#(escapeHTML(path))"\#(here)>\#(escapeHTML(title))</a></li>"#
+        }
+        return #"<ul class="category-links">"# + link("All", c.mainPath)
+            + categories.map { link($0.title, $0.path) }.joined() + "</ul>"
+    }
+
+    // MARK: - Tags
+
+    /// Every tag with only what's published under it (pages that have an
+    /// address of their own, and files), without unused ones.
+    var publishedTags: [TagUse] { tagsWithPublishedPages.filter(\.isUsed) }
+
+    /// Every tag, with only its published pages.
+    private var tagsWithPublishedPages: [TagUse] {
+        site.tagIndex(includeDrafts: includeDrafts).map { tag in
+            var tag = tag
+            tag.pages = tag.pages.filter { $0.isListedOnTagPages && !($0.isSearchPage && !site.config.search.enabled) }
+            return tag
+        }
+    }
+
+    /// /tags/ (every tag) or /tags/<slug>/ (one tag's pages).
+    private func renderTag(_ slug: String?) -> String? {
+        let tags = tagsWithPublishedPages
+        var context: [String: TemplateValue]
+        if let slug {
+            guard let tag = tags.first(where: { $0.slug == slug }) else { return nil }
+            context = globals(path: tag.path, title: tag.name,
+                              description: tag.description.isEmpty ? nil : tag.description)
+            context["tag"] = .dict([
+                "name": .string(tag.name),
+                "description": .string(tag.description),
+                "count": .string(tag.usage),
+            ])
+            context["listing"] = .string(tagListingHTML(tag.pages, files: tag.files))
+        } else {
+            context = globals(path: TagSettings.path, title: "Tags", description: nil)
+        }
+        context["tags"] = .list(tags.filter(\.isUsed).map { tag in
+            .dict(["name": .string(tag.name), "url": .string(tag.path), "count": .string(String(tag.pages.count + tag.files.count))])
+        })
+        return wrap(templates["tags"]!.render(.dict(context)), context: context)
+    }
+
+    /// A tag's pages (title, what it is, date and summary), then its photos
+    /// as a gallery and its other files as links.
+    func tagListingHTML(_ pages: [ContentItem], files: [String] = []) -> String {
+        guard !pages.isEmpty || !files.isEmpty else { return #"<p class="empty">Nothing has this tag yet.</p>"# }
+        var html = pages.isEmpty ? "" : tagPagesHTML(pages)
+        let images = files.filter { ImageImporter.isImage(URL(filePath: $0)) }
+        let others = files.filter { !images.contains($0) }
+        let headings = !pages.isEmpty
+        if !images.isEmpty {
+            if headings { html += #"<h2 class="tag-heading">Photos</h2>"# }
+            html += #"<div class="collection-grid collection-gallery tag-photos" style="--cols:4">"#
+            for path in images {
+                var shown = path
+                if let small = MediaLibrary.smallPath(for: path),
+                   FileManager.default.fileExists(atPath: site.root.appending(path: small).path) {
+                    shown = small
+                }
+                html += #"<a class="gallery-item" href="/\#(escapeHTML(path))"><img src="/\#(escapeHTML(shown))" alt="" loading="lazy"></a>"#
+            }
+            html += "</div>"
+        }
+        if !others.isEmpty {
+            if headings || !images.isEmpty { html += #"<h2 class="tag-heading">Files</h2>"# }
+            html += #"<ul class="post-list tag-list">"# + others.map { path in
+                #"<li><a href="/\#(escapeHTML(path))">\#(escapeHTML((path as NSString).lastPathComponent))</a></li>"#
+            }.joined() + "</ul>"
+        }
+        return html
+    }
+
+    private func tagPagesHTML(_ pages: [ContentItem]) -> String {
+        let rows = Self.sorted(pages, .newest).map { item in
+            var row = #"<li><a href="\#(escapeHTML(item.path))">\#(escapeHTML(item.title))</a> "#
+            var meta = [site.config.visitorTypeName(item.kind)]
+            if item.kind.isItem, site.collection(for: item.kind)?.dated == true, !item.date.isEmpty {
+                meta.append(displayDate(item.date))
+            }
+            row += #"<span class="meta">\#(escapeHTML(meta.joined(separator: " · ")))</span>"#
+            let summary = item.frontMatter.string("summary") ?? ""
+            if !summary.isEmpty { row += "<p>\(escapeHTML(summary))</p>" }
+            return row + "</li>"
+        }
+        return #"<ul class="post-list tag-list">"# + rows.joined() + "</ul>"
+    }
+
+    /// A page's tags as links to their tag pages (or plain words when tag
+    /// pages are off).
+    private func tagLinksHTML(_ item: ContentItem) -> String {
+        item.tags.map { name in
+            let slug = TagSettings.slug(name)
+            return site.config.tags.pages
+                ? #"<a class="tag" href="\#(escapeHTML(TagSettings.path(slug)))">\#(escapeHTML(name))</a>"#
+                : #"<span class="tag">\#(escapeHTML(name))</span>"#
+        }.joined()
     }
 
     /// The home page: home.html with the post list, plus the Home page's
@@ -161,7 +453,7 @@ struct SiteRenderer: Sendable {
             page.merge(meta) { _, globalField in globalField }
             context["page"] = .dict(page)
         }
-        context["posts"] = .list(published(.post).map(itemValue))
+        context["posts"] = .list(homeItems.map(itemValue))
         if let home, let layout = layout(for: home) {
             return renderLayout(home, layout, context: context)
         }
@@ -200,47 +492,48 @@ struct SiteRenderer: Sendable {
             areas[String(number)] = .string(Self.markdownToHTML(text))
         }
         context["section"] = .dict(areas)
-        context["recentPosts"] = .list(published(.post).prefix(5).map(itemValue))
+        context["recentPosts"] = .list(homeItems.prefix(5).map(itemValue))
         context["blogCategories"] = .list(published(.blogCategory).map(itemValue))
+        if let c = site.collection(for: item.kind), c.categories {
+            context["categories"] = .list(published(c.categoryKind).map(itemValue))
+        }
         return wrap(template.render(.dict(context)), context: context)
     }
 
-    /// Shown above the text: a post's date, categories and tags, or a
-    /// product's price.
+    /// Shown above an item's text: its date, categories and tags (each
+    /// when the collection shows them), and its price.
     private func metaHTML(_ item: ContentItem) -> String {
-        switch item.kind {
-        case .post:
-            var html = #"<p class="meta"><time datetime="\#(escapeHTML(item.date))">\#(escapeHTML(displayDate(item.date)))</time>"#
+        guard item.kind.isItem, let c = site.collection(for: item.kind) else { return "" }
+        var parts: [String] = []
+        if c.dated && c.showDate && !item.date.isEmpty {
+            parts.append(#"<time datetime="\#(escapeHTML(item.date))">\#(escapeHTML(displayDate(item.date)))</time>"#)
+        }
+        if c.categories && c.showCategories {
             let categories = categoryLinksHTML(item)
-            if !categories.isEmpty { html += " · " + categories }
-            let tags = item.frontMatter.list("tags")
-            if !tags.isEmpty { html += " · " + tags.map { #"<span class="tag">\#(escapeHTML($0))</span>"# }.joined() }
-            return html + "</p>"
-        case .product:
-            let price = item.frontMatter.string("price") ?? ""
-            return price.isEmpty ? "" : #"<p class="price">\#(escapeHTML(price))</p>"#
-        default:
-            return ""
+            if !categories.isEmpty { parts.append(categories) }
         }
-    }
-
-    /// Shown below the text: a product's Buy button and categories.
-    private func actionsHTML(_ item: ContentItem) -> String {
-        guard item.kind == .product else { return "" }
-        var html = ""
-        let buy = item.frontMatter.string("buy") ?? ""
-        if !buy.isEmpty {
-            let label = item.frontMatter.string("buyLabel").flatMap { $0.isEmpty ? nil : $0 } ?? "Buy Now"
-            html += #"<p><a class="button buy" href="\#(escapeHTML(buy))" target="_blank" rel="noopener">\#(escapeHTML(label))</a></p>"#
+        if c.showTags {
+            let tags = tagLinksHTML(item)
+            if !tags.isEmpty { parts.append(tags) }
         }
-        let categories = categoryLinksHTML(item)
-        if !categories.isEmpty { html += #"<p class="meta">In \#(categories)</p>"# }
+        var html = parts.isEmpty ? "" : #"<p class="meta">"# + parts.joined(separator: " · ") + "</p>"
+        let price = c.selling ? item.frontMatter.string("price") ?? "" : ""
+        if !price.isEmpty { html += #"<p class="price">\#(escapeHTML(price))</p>"# }
         return html
     }
 
+    /// Shown below an item's text: the Buy button, when it's for sale.
+    private func actionsHTML(_ item: ContentItem) -> String {
+        guard item.kind.isItem, site.collection(for: item.kind)?.selling == true else { return "" }
+        let buy = item.frontMatter.string("buy") ?? ""
+        guard !buy.isEmpty else { return "" }
+        let label = item.frontMatter.string("buyLabel").flatMap { $0.isEmpty ? nil : $0 } ?? "Buy Now"
+        return #"<p><a class="button buy" href="\#(escapeHTML(buy))" target="_blank" rel="noopener">\#(escapeHTML(label))</a></p>"#
+    }
+
     private func categoryLinksHTML(_ item: ContentItem) -> String {
-        guard let kind = item.kind.categoryKind else { return "" }
-        let categories = published(kind)
+        guard case .item(let id) = item.kind else { return "" }
+        let categories = published(.category(id))
         return item.categories.compactMap { slug in
             categories.first { $0.slug == slug }.map {
                 #"<a class="category" href="\#(escapeHTML($0.path))">\#(escapeHTML($0.title))</a>"#
@@ -248,34 +541,20 @@ struct SiteRenderer: Sendable {
         }.joined()
     }
 
-    /// A category's posts or products, or Home's posts.
+    /// For layouts: a main page's or category's items, or Home's.
     private func listingHTML(_ item: ContentItem) -> String {
-        let memberKind: ContentKind? = item.isHome ? .post : item.kind.memberKind
-        guard let memberKind else { return "" }
-        let members = item.isHome ? published(.post) : self.members(of: item)
-        if memberKind == .post {
-            guard !members.isEmpty else { return #"<p class="empty">No posts yet.</p>"# }
-            let rows = members.map { post in
-                var row = #"<li><a href="\#(escapeHTML(post.path))">\#(escapeHTML(post.title))</a> <time datetime="\#(escapeHTML(post.date))">\#(escapeHTML(displayDate(post.date)))</time>"#
-                let summary = post.frontMatter.string("summary") ?? ""
-                if !summary.isEmpty { row += "<p>\(escapeHTML(summary))</p>" }
-                return row + "</li>"
-            }
-            return #"<ul class="post-list">"# + rows.joined() + "</ul>"
+        if item.isHome {
+            let blog = site.config.collections.first(where: \.onHome) ?? ContentCollection(preset: .blog, id: ContentCollection.blogID)
+            var list = blog
+            list.listStyle = .list
+            return listingHTML(homeItems, list)
         }
-        guard !members.isEmpty else { return #"<p class="empty">Nothing here yet.</p>"# }
-        let cards = members.map { product in
-            var card = #"<a class="project-card" href="\#(escapeHTML(product.path))">"#
-            let cover = product.frontMatter.string("cover") ?? ""
-            if !cover.isEmpty { card += #"<img src="\#(escapeHTML(cover))" alt="">"# }
-            card += "<h2>\(escapeHTML(product.title))</h2>"
-            let price = product.frontMatter.string("price") ?? ""
-            if !price.isEmpty { card += #"<p class="price">\#(escapeHTML(price))</p>"# }
-            let summary = product.frontMatter.string("summary") ?? ""
-            if !summary.isEmpty { card += "<p>\(escapeHTML(summary))</p>" }
-            return card + "</a>"
+        guard let c = site.collection(for: item.kind) else { return "" }
+        switch item.kind {
+        case .main: return categoryNavHTML(c, current: item.path) + listingHTML(items(of: c), c)
+        case .category: return categoryNavHTML(c, current: item.path) + listingHTML(members(of: item), c)
+        default: return ""
         }
-        return #"<div class="project-grid">"# + cards.joined() + "</div>"
     }
 
     /// A sample page in a layout, for the Layouts page's preview.
@@ -324,16 +603,15 @@ struct SiteRenderer: Sendable {
         return ContentItem(fileURL: site.root.appending(path: "pages/_layout-sample.md"), text: text)
     }
 
-    private func renderList(_ template: String, key: String, items: [ContentItem], path: String, title: String) -> String {
-        var context = globals(path: path, title: title, description: site.config.description)
-        context[key] = .list(items.map(itemValue))
-        return wrap(templates[template]!.render(.dict(context)), context: context)
-    }
-
     private func wrap(_ body: String, context: [String: TemplateValue]) -> String {
         var context = context
         context["body"] = .string(insertWidgets(into: body))
-        let html = Lightbox.inject(into: templates["base"]!.render(.dict(context)))
+        var html = Lightbox.inject(into: templates["base"]!.render(.dict(context)))
+        // Styles for lists, galleries, pagers and videos, on pages that have them.
+        if Self.collectionMarkers.contains(where: body.contains),
+           let head = html.range(of: "</head>", options: .caseInsensitive) {
+            html.insert(contentsOf: Self.collectionStyle, at: head.lowerBound)
+        }
         // Theming settings go last in <head> so they override the theme's CSS.
         guard let theme = site.theme, let head = html.range(of: "</head>", options: .caseInsensitive) else { return html }
         return html.replacingCharacters(in: head.lowerBound..<head.lowerBound,
@@ -349,6 +627,8 @@ struct SiteRenderer: Sendable {
                 let current = path == link.url
                     || (link.url != "/" && link.url.hasPrefix("/") && path.hasPrefix(link.url))
                     || (link.url == "/" && path.hasPrefix("/posts/"))
+                    // A collection's main page, on its items' pages.
+                    || c.collections.contains { link.url == $0.mainPath && path.hasPrefix("/\(ContentCollection.itemFolder($0.id))/") }
                 let icon = NavIcon.named(link.icon)
                 let title = link.title.trimmingCharacters(in: .whitespaces)
                 return .dict([
@@ -423,14 +703,17 @@ struct SiteRenderer: Sendable {
         dict["summary"] = .string(item.frontMatter.string("summary") ?? "")
         dict["tags"] = .list(item.frontMatter.list("tags").map { .string($0) })
         dict["type"] = .string(item.kind.rawValue)
-        if item.kind.categoryKind != nil {
+        dict["tagLinks"] = .list(item.tags.map { name in
+            .dict(["title": .string(name), "url": .string(TagSettings.path(TagSettings.slug(name)))])
+        })
+        if case .item(let id) = item.kind {
             // The categories it's in, as links (unknown or draft ones left out).
-            let categories = published(item.kind.categoryKind!)
+            let categories = published(.category(id))
             dict["categoryLinks"] = .list(item.categories.compactMap { slug in
                 categories.first { $0.slug == slug }.map { .dict(["title": .string($0.title), "url": .string($0.path)]) }
             })
         }
-        if item.kind == .product {
+        if item.kind.isItem, site.collection(for: item.kind)?.selling == true {
             dict["price"] = .string(item.frontMatter.string("price") ?? "")
             dict["buy"] = .string(item.frontMatter.string("buy") ?? "")
             let label = item.frontMatter.string("buyLabel") ?? ""
@@ -481,7 +764,12 @@ struct SiteRenderer: Sendable {
         <atom:link href="\(escapeHTML(c.baseURL))/feed.xml" rel="self" type="application/rss+xml"/>
 
         """
-        for post in published(.post).prefix(20) {
+        let fed = Set(site.config.collections.filter(\.inFeed).map(\.id))
+        let posts = Self.sorted(site.items.filter { item in
+            guard case .item(let c) = item.kind else { return false }
+            return fed.contains(c) && (includeDrafts || !item.isDraft)
+        }, .newest)
+        for post in posts.prefix(20) {
             let link = c.baseURL + post.path
             let html = Self.markdownToHTML(post.body).replacingOccurrences(of: "]]>", with: "]]]]><![CDATA[>")
             xml += "<item>\n"
@@ -542,13 +830,13 @@ extension SiteRenderer {
 }
 
 extension SiteRenderer {
-    /// The published posts or products in a category page, in site order
-    /// (posts newest first).
+    /// The published items in a category page, in the collection's order.
     func members(of category: ContentItem) -> [ContentItem] {
-        guard let member = category.kind.memberKind else { return [] }
-        return site.items(member)
+        guard case .category(let id) = category.kind else { return [] }
+        let sort = site.collection(for: category.kind)?.sort ?? .newest
+        return Self.sorted(site.items(.item(id))
             .filter { includeDrafts || !$0.isDraft }
-            .filter { $0.categories.contains(category.slug) }
+            .filter { $0.categories.contains(category.slug) }, sort)
     }
 }
 
@@ -715,29 +1003,21 @@ extension SiteRenderer {
             var entry: [String: Any] = [
                 "title": item.title,
                 "url": item.path,
-                "type": Self.visitorTypeName(item.kind),
+                "type": site.config.visitorTypeName(item.kind),
                 "summary": item.frontMatter.string("summary") ?? "",
                 // Tags, and the names of the categories it's in.
-                "tags": item.frontMatter.list("tags") + item.categories.map { slug in
-                    site.items.first { $0.slug == slug && $0.kind == item.kind.categoryKind }?.title ?? slug
-                },
+                "tags": item.tags + (item.kind.isItem ? item.categories.map { slug in
+                    site.items.first { $0.slug == slug && $0.kind == .category(item.kind.collectionID!) }?.title ?? slug
+                } : []),
                 "text": Self.plainText(item.body, limit: 5000),
             ]
-            if item.kind == .post, !item.date.isEmpty { entry["date"] = displayDate(item.date) }
+            if item.kind.isItem, site.collection(for: item.kind)?.dated == true, !item.date.isEmpty {
+                entry["date"] = displayDate(item.date)
+            }
             return entry
         }
         let data = (try? JSONSerialization.data(withJSONObject: entries, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data("[]".utf8)
         return String(decoding: data, as: UTF8.self)
-    }
-
-    /// What a page is, in words for site visitors (shown in search results).
-    static func visitorTypeName(_ kind: ContentKind) -> String {
-        switch kind {
-        case .page, .links: "Page"
-        case .post: "Post"
-        case .product: "Product"
-        case .blogCategory, .shopCategory: "Category"
-        }
     }
 
     /// A page's Markdown as plain text: formatted, then without tags,
@@ -758,5 +1038,94 @@ extension SiteRenderer {
         guard text.count > limit else { return text }
         let cut = text.prefix(limit)
         return String(cut[..<(cut.lastIndex(of: " ") ?? cut.endIndex)])
+    }
+}
+
+extension SiteRenderer {
+    /// Classes in a page's HTML that need `collectionStyle`.
+    static let collectionMarkers = [#"class="collection-"#, #"class="project-grid collection-"#, #"class="pager""#,
+                                    #"class="video-embed""#, #"class="category-links""#, #"class="tag-cloud""#]
+
+    /// Styles for collection lists, galleries, category links, the pager,
+    /// videos and the tag list, using the theme's variables.
+    static let collectionStyle = """
+    <style>
+    .collection-grid { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 1.25rem; margin: 2rem 0; }
+    .collection-grid .project-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+    .collection-grid .project-card time { display: block; margin: 0 0 0.35rem; }
+    .collection-gallery { gap: 0.9rem; }
+    .gallery-item { display: block; color: var(--text); text-decoration: none; }
+    .gallery-item img, .gallery-blank { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--image-radius, 0); transition: opacity 0.2s; }
+    .gallery-blank { background: var(--card); border: 1px solid var(--line); }
+    .gallery-item:hover img { opacity: 0.85; }
+    .gallery-item > span:not(.gallery-blank) { display: block; margin-top: 0.45rem; font-family: var(--font-heading); font-size: 0.95rem; font-weight: 600; }
+    .gallery-item:hover > span:not(.gallery-blank) { color: var(--accent); }
+    .gallery-item time { display: block; font-size: 0.8rem; }
+    @media (max-width: 760px) { .collection-grid { grid-template-columns: repeat(min(var(--cols, 3), 2), minmax(0, 1fr)); } }
+    @media (max-width: 460px) { .collection-grid:not(.collection-gallery) { grid-template-columns: 1fr; } }
+    .post-list .price { margin: 0.25rem 0 0; }
+    .tag-list .meta { display: block; }
+    .category-links, .tag-cloud { display: flex; flex-wrap: wrap; gap: 0.5rem; list-style: none; padding: 0; margin: 1.25rem 0 0; }
+    .category-links a, .tag-cloud a { display: inline-block; padding: 0.3rem 0.8rem; border: 1px solid var(--line); border-radius: 999px; font-family: var(--font-heading); font-size: 0.85rem; color: var(--text); text-decoration: none; }
+    .category-links a:hover, .tag-cloud a:hover { border-color: var(--accent); color: var(--accent); }
+    .category-links a[aria-current] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+    .tag-cloud { margin: 2rem 0; }
+    .tag-heading { font-size: 1.1rem; margin: 2.5rem 0 0; }
+    .tag-cloud small { color: var(--muted); margin-left: 0.3em; }
+    .video-embed { position: relative; aspect-ratio: 16 / 9; margin: 1.5rem 0; border-radius: var(--cover-radius, 8px); overflow: hidden; background: #000; }
+    .video-embed iframe, .video-embed video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+    .video-link { margin: 1.5rem 0; }
+    .pager { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 1rem; margin: 3rem 0 0; padding-top: 1.25rem; border-top: 1px solid var(--line); font-family: var(--font-heading); font-size: 0.95rem; }
+    .pager a { text-decoration: none; }
+    .pager small { display: block; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .pager .all { align-self: center; font-size: 0.85rem; }
+    .pager .next { text-align: right; }
+    @media (max-width: 560px) { .pager { grid-template-columns: 1fr 1fr; } .pager .all { grid-column: 1 / -1; grid-row: 2; text-align: center; } }
+    </style>
+    """
+
+    /// YouTube, YouTube Shorts and youtu.be links: the video's id.
+    static func youTubeID(_ link: String) -> String? {
+        guard let url = URL(string: link.trimmingCharacters(in: .whitespaces)),
+              let host = url.host()?.lowercased() else { return nil }
+        let parts = url.path().split(separator: "/").map(String.init)
+        var id: String?
+        if host.hasSuffix("youtu.be") {
+            id = parts.first
+        } else if host.hasSuffix("youtube.com") || host.hasSuffix("youtube-nocookie.com") {
+            if let first = parts.first, ["embed", "shorts", "live", "v"].contains(first), parts.count > 1 {
+                id = parts[1]
+            } else {
+                id = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "v" }?.value
+            }
+        }
+        guard let id, !id.isEmpty, id.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) else { return nil }
+        return id
+    }
+
+    /// A video link as a player: YouTube and Vimeo links become their
+    /// players, video files (.mp4, .webm, .mov, .m4v) a `<video>`, and
+    /// anything else a plain link. Empty for no link.
+    static func videoEmbedHTML(_ link: String) -> String {
+        let link = link.trimmingCharacters(in: .whitespaces)
+        guard !link.isEmpty else { return "" }
+        let frame = { (src: String) in
+            #"<div class="video-embed"><iframe src="\#(escapeHTML(src))" title="Video" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>"#
+        }
+        if let id = youTubeID(link) { return frame("https://www.youtube-nocookie.com/embed/\(id)") }
+        if let url = URL(string: link), url.host()?.lowercased().hasSuffix("vimeo.com") == true,
+           let id = url.path().split(separator: "/").last(where: { $0.allSatisfy(\.isNumber) }) {
+            return frame("https://player.vimeo.com/video/\(id)")
+        }
+        let ext = (link.split(separator: "?").first.map(String.init) ?? link).split(separator: ".").last?.lowercased() ?? ""
+        if ["mp4", "webm", "mov", "m4v"].contains(ext) {
+            return #"<div class="video-embed"><video src="\#(escapeHTML(link))" controls playsinline preload="metadata"></video></div>"#
+        }
+        return #"<p class="video-link"><a href="\#(escapeHTML(link))">Watch the video</a></p>"#
+    }
+
+    /// A thumbnail for a YouTube link, for lists.
+    static func videoThumbnail(_ link: String) -> String? {
+        youTubeID(link).map { "https://i.ytimg.com/vi/\($0)/hqdefault.jpg" }
     }
 }

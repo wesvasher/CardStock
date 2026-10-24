@@ -16,12 +16,10 @@ my-site/
 │   ├── fonts.json     Web fonts added to the site. Optional
 │   ├── base.html      Page shell shared by every page
 │   ├── home.html      Home page (list of recent posts)
-│   ├── post.html      A blog post
 │   ├── page.html      A static page (also used for Home's 404 page)
-│   ├── blog-category.html   A blog category and its posts
-│   ├── product.html         A product
-│   ├── shop-category.html   A shop category and its products
-│   ├── shop.html            /shop/: every product
+│   ├── collection.html      A collection's main page or a category: its text, then its items
+│   ├── item.html            An item in a collection (a post, a product, a project, …)
+│   ├── tags.html            /tags/ (every tag) and /tags/<tag>/ (a tag's pages)
 │   ├── template.html        The Template page: every part of the style, for CardStock's preview. Not published
 │   ├── layouts/             Page layouts a page can choose with `layout:` (wide.html, hero.html, …)
 │   └── assets/        CSS, fonts and scripts, served at /assets/
@@ -87,6 +85,32 @@ my-site/
 
 `url` is the public address with no trailing slash. It is used for the RSS feed and canonical links.
 
+`collections` lists the site's collections (Configuration → Collections), in menu order. A collection is a section of the site: a main page listing its items, a page per item, and optional category pages. Without `collections`, CardStock uses the blog, plus the shop when the site has products or shop categories, and writes them on the next change.
+
+```json
+"collections": [
+  {
+    "id": "work", "preset": "portfolio", "name": "Work", "itemName": "Project", "itemsName": "Projects",
+    "icon": "photo.on.rectangle.angled",
+    "listStyle": "gallery", "columns": 3, "sort": "newest",
+    "listImages": true, "listDates": false, "listSummaries": false, "listCategories": true, "emptyText": "",
+    "dated": true, "showDate": false, "showCover": true, "showTags": true, "showCategories": true,
+    "selling": false, "video": false, "prevNext": true, "itemLayout": "",
+    "categories": true, "onHome": false, "inFeed": false
+  }
+]
+```
+
+- `id` is the address and the type name: the main page is `/<id>/`, items `/<id>/<slug>/` with `type: <id>` (the blog's are `/posts/<slug>/` with `type: post`; the shop's `type: product`), and categories `/<id>/<slug>/` with `type: <id>-category`. It can't be a reserved word (`page`, `posts`, `tags`, `search`, …) and doesn't change after the collection is made.
+- `preset` (`blog`, `shop`, `portfolio`, `videos`, `custom`) supplies any setting left out.
+- Main page and categories: `listStyle` is `list` (rows), `cards` or `gallery`; `columns` (1–6) for cards and galleries; `sort` is `newest`, `oldest` or `title`; `listImages` (cover, or a YouTube video's thumbnail), `listDates`, `listSummaries`, `listCategories` (links to the main page and each category above the list); `emptyText` when there's nothing to list (empty: "No <items> yet.").
+- Item pages: `dated` (items have a `date`), `showDate`, `showCover`, `showTags`, `showCategories`, `selling` (`price` and a Buy button from `buy`), `video` (a player from `video`), `prevNext` (links to the neighbouring items and the main page); `itemLayout` is the layout new items start with.
+- `categories` turns category pages on; `onHome` lists the items on Home (newest first, with other collections that have it); `inFeed` puts them in `/feed.xml`.
+
+Files in `media/` are tagged in `media.json` at the site's root (committed, not published): `{ "files": { "media/files/beach.jpg": { "tags": ["travel"] } } }`. Files without tags and files that no longer exist are left out when it's saved; with no file tags it's removed.
+
+`tags` (optional): `pages` (default true) publishes `/tags/` and a page per tag; `list` holds tags with a `description` (shown on the tag's page) or made before any page used them: `"tags": { "pages": true, "list": [{ "name": "Design", "description": "Pages about design." }] }`.
+
 `footer` is optional; without it the footer is on with a copyright notice and an RSS link. `copyrightName` empty means the author, or the site title when there's no author. The copyright shows as `© <current year> <name>`.
 
 `header` is optional: the top navigation bar, edited in Configuration → Top Navigation Bar. `mode` is `scrolls` (part of the page; the default), `fixed` (stays at the top at `height`, with the page blurred behind it) or `shrinking` (starts at `height` and shrinks to `compactHeight` as the page scrolls, the logo going from `logoHeight` to `compactLogoHeight` and fading into `compactLogo` when there is one). `logo` empty shows the site title; `showTitle` shows the title next to a logo. `showLogo` false hides the logo (and compact logo), keeping the other logo settings; `showTitle` shows the site title, on its own or next to the logo. With both off, no logo or title is shown. `logoWidth` 0 follows the image's shape (SVG logos always do); `logoAlt` empty uses the site title. `logoPosition` (`left`, `center`, `right`) places the logo and title in the bar, with `logoPadding` around them. The bar has three groups of links: `leftLinks`, `centerLinks`, and `nav` on the right, each shown when its `show…Links` is true (`showRightLinks` defaults to true, so sites made before groups keep their menu). `mobileMenu` (default true) folds the links into a menu button on screens up to 600px wide, which opens them in a full-screen overlay (`header.mobileMenu` in templates is true only when it's on and there are links; base.html adds `has-mobile-menu` to `.site-bar`, `has-brand` to the slot holding the logo and title, a `.nav-toggle` button, and a `#nav-overlay` with every shown link after the bar). Top bar links (in `nav`, `leftLinks` and `centerLinks`) may also have `"button": true` (shown as a button, styled by `navButton` in theme.json) and `"icon"`, the id of one of CardStock's bundled icons (Lucide: `search`, `house`, `mail`, `shopping-bag`, `github`, …), output as an inline `<svg class="nav-icon">`; a link with an icon and no `title` shows just the icon, with an `aria-label`. Sizes are pixels.
@@ -118,28 +142,33 @@ Post body in **Markdown**.
 
 The header is a small subset of YAML: one `key: value` per line. A value is text (quotes optional), `true`/`false`, or a list in `[a, b]` form. Unknown keys are kept as they are and passed to templates.
 
-Every page lives in `pages/`. `type` says what kind of page it is; without it (or with `page`) it's a static page. `pages/index.md` (Home), `pages/404.md` and `pages/template.md` (Template) are always static pages. File names are unique across all types.
+Every page lives in `pages/`. `type` says what kind of page it is; without it (or with `page`) it's a static page. `pages/index.md` (Home), `pages/404.md`, `pages/template.md` (Template) and `pages/search.md` are always static pages. File names are unique across all types.
 
 | `type`          | Is                                  | Published at       | Template             |
 |-----------------|-------------------------------------|--------------------|----------------------|
 | (none) / `page` | Static page                         | `/<slug>/`         | `page.html`          |
-| `post`          | Blog post                           | `/posts/<slug>/`   | `post.html`          |
-| `blog-category` | Blog category, listing its posts    | `/blog/<slug>/`    | `blog-category.html` |
-| `product`       | Product                             | `/shop/<slug>/`    | `product.html`       |
-| `shop-category` | Shop category, listing its products | `/shop/<slug>/`    | `shop-category.html` |
+| `collection`    | A collection's main page; the file is `pages/<id>.md` | `/<id>/` | `collection.html` |
+| `post`          | Blog post (an item in `blog`)       | `/posts/<slug>/`   | `item.html`          |
+| `product`       | Product (an item in `shop`)         | `/shop/<slug>/`    | `item.html`          |
+| `<id>`          | An item in collection `<id>`        | `/<id>/<slug>/`    | `item.html`          |
+| `<id>-category` | A category in collection `<id>` (`blog-category`, `shop-category`, …) | `/<id>/<slug>/` | `collection.html` |
 | `links`         | Link menu for the footer            | not published      | –                    |
+
+A main page without a file is still published, titled with the collection's name, once the collection has a published item. Pages whose type names a collection that isn't in `site.json` are published with that collection's preset settings (and flagged in the health checks).
 
 | Key          | Used by            | Meaning                                   |
 |--------------|--------------------|-------------------------------------------|
 | `title`      | all                | Display title                             |
 | `type`       | all                | Page type (above)                         |
-| `date`       | posts              | `YYYY-MM-DD`. Sets ordering, newest first |
+| `date`       | items              | `YYYY-MM-DD`. Sets ordering in dated collections |
 | `summary`    | all                | Short description for lists and meta tags |
-| `tags`       | posts              | List of tags                              |
-| `categories` | posts, products    | Slugs of the blog or shop category pages it's listed on, e.g. `[travel, notes]` |
-| `price`      | products           | Price as shown, e.g. `$24.00`             |
-| `buy`        | products           | Checkout link for the Buy button (Stripe Payment Links, Gumroad, Etsy, …) |
-| `buyLabel`   | products           | Buy button text; `Buy Now` when empty     |
+| `tags`       | all                | List of tags, e.g. `[travel, Design]`. Tags with the same address name (`Design`, `design`) are one tag |
+| `categories` | items              | Slugs of its collection's category pages it's listed on, e.g. `[travel, notes]` |
+| `price`      | items (selling)    | Price as shown, e.g. `$24.00`             |
+| `buy`        | items (selling)    | Checkout link for the Buy button (Stripe Payment Links, Gumroad, Etsy, …) |
+| `buyLabel`   | items (selling)    | Buy button text; `Buy Now` when empty     |
+| `video`      | items (video)      | YouTube or Vimeo link, or a video file (`.mp4`, `.webm`, `.mov`, `.m4v`) |
+| `layout`     | all                | A page layout (below)                     |
 | `cover`      | all                | Image path, usually `/media/…`            |
 | `draft`      | all                | `true` hides it from the published site   |
 
@@ -169,12 +198,15 @@ Copy Markdown gives `![Description](/media/…)` for images (wrapped in a link t
 |-------------------------|-------------------------|------------------------------|
 | `pages/index.md` + posts | `/`                    | `home.html`                  |
 | `pages/<slug>.md` (by `type`) | see the type table above | see above            |
-| (all products)          | `/shop/`                | `shop.html` (only when there are products) |
+| (collection main page)  | `/<id>/`                | `collection.html`            |
+| (tags)                  | `/tags/`, `/tags/<tag>/` | `tags.html` (when `tags.pages` is on and a published page or a file has the tag) |
 | `pages/404.md`          | `/404.html`             | `page.html`                  |
 | `pages/template.md`     | not published (`/_template/` in the preview) | `template.html` |
-| (all posts)             | `/feed.xml`             | built in (RSS 2.0)           |
+| (items of `inFeed` collections) | `/feed.xml`     | built in (RSS 2.0)           |
 
-Every page is rendered with its own template, and the result is placed inside `base.html` as `body`. Slugs `posts`, `blog`, `shop`, `links`, `media`, `assets` and `template` are reserved. A theme without the newer templates (`blog-category`, `product`, `shop-category`, `shop`) uses CardStock's built-in versions.
+Every page is rendered with its own template, and the result is placed inside `base.html` as `body`. Slugs `posts`, `blog`, `shop`, `links`, `media`, `assets`, `tags` and `template`, and every collection's id, are reserved for static pages. A theme without the newer templates (`collection`, `item`, `tags`) uses CardStock's built-in versions. Older themes' `post.html`, `product.html`, `blog-category.html`, `shop-category.html` and `shop.html` are no longer used.
+
+Pages with collection lists, category links, a pager, a video or the tag list get a small `<style>` block in `<head>` for them (`.collection-grid`, `.gallery-item`, `.category-links`, `.pager`, `.video-embed`, `.tag-cloud`), using the theme's variables.
 
 `template.html` renders the Template page, `pages/template.md`: sample colors, fonts, text, lists, code, tables, buttons, a post list and product cards, with the page's own text under the title, wrapped in `base.html` with the usual globals. Like Home and 404, the Template page is always a static page and can't be deleted. CardStock shows it at `/_template/` in the preview only; it's never written to `public/`. CardStock adds the page and the template to sites that don't have them when they open, and uses its built-in template if the file is missing.
 
@@ -182,7 +214,7 @@ Every page is rendered with its own template, and the result is placed inside `b
 
 `pages/search.md` is the Search page, published at `/search/` and drawn with `theme/search.html` (CardStock's built-in version when missing). It's a fixed page like Home: its title and text show above a search field. Its template gets `search.index` (`/search.json`), `search.placeholder` and `search.buttonLabel`. The page loads the index with a small script and filters it as visitors type; `/search/?q=words` opens with a search done.
 
-`/search.json` is a list of the findable pages, each with `title`, `url`, `type` (`Page`, `Post`, `Product` or `Category`), `date` (posts), `summary`, `tags` (tags plus category names) and `text` (the page's text without formatting, up to about 5,000 characters). Drafts are left out of published sites, as are Home, the 404 page, the Template and Search pages and link menus.
+`/search.json` is a list of the findable pages, each with `title`, `url`, `type` (`Page`, `Category`, or the collection's item name such as `Post` or `Product`), `date` (items of dated collections), `summary`, `tags` (tags plus category names) and `text` (the page's text without formatting, up to about 5,000 characters). Drafts are left out of published sites, as are Home, the 404 page, the Template and Search pages and link menus.
 
 A line holding only `<!-- search -->` (outside code blocks) shows a search box: a `<form class="search-box" action="/search/">` with a `q` field and a button, preceded once per page by a small `<style>` block.
 
@@ -197,7 +229,7 @@ Settings in `site.json`:
 }
 ```
 
-`enabled: false` leaves out `/search/`, `/search.json` and every search box. `kinds` are page types (`page`, `post`, `product`, `blog-category`, `shop-category`).
+`enabled: false` leaves out `/search/`, `/search.json` and every search box. `kinds` are page types (`page`, `post`, `product`, `blog-category`, a collection's `<id>` or `<id>-category`); a collection's main page is found when its items are. New collections are added to `kinds`.
 
 ### Newsletter box
 
@@ -231,13 +263,13 @@ types: page, post
 -->
 ```
 
-`areas` are the places for the page's own text. A line `<!-- section -->` in the Markdown (outside code blocks) is a section break: sections fill the areas in order, extra sections join the last area, and text without breaks goes into the `main` area (the first when not given). `types` limits which page types offer the layout (all when absent).
+`areas` are the places for the page's own text. A line `<!-- section -->` in the Markdown (outside code blocks) is a section break: sections fill the areas in order, extra sections join the last area, and text without breaks goes into the `main` area (the first when not given). `types` limits which page types offer the layout (all when absent): `type:` values (`page`, `post`, `work-category`, …) or `item`, `category` and `collection` for those pages of every collection.
 
 Layouts get the same values as the type's template, plus:
 
-- `page`: the page's fields for every type (a post's or product's too), with `content` (all the text), `sections` (a list, one HTML string per section), `meta` (HTML above the text: a post's date, categories and tags, or a product's price), `actions` (HTML below it: a product's Buy button and categories) and `listing` (HTML for a category's posts or products, or Home's posts).
+- `page`: the page's fields for every type (an item's too), with `content` (all the text), `sections` (a list, one HTML string per section), `meta` (HTML above the text: an item's date, categories, tags and price, as its collection shows them), `actions` (HTML below it: the Buy button) and `listing` (HTML for a main page's or category's items with its category links, or Home's items).
 - `section`: the HTML for each area by number, `section.1`, `section.2`, …
-- `recentPosts` (the five newest) and `blogCategories`.
+- `recentPosts` (the five newest items listed on Home), `blogCategories`, and `categories` (the page's own collection's categories).
 
 CardStock previews a sample page in each layout at `/_layouts/<name>/` (`/_layouts/standard/` for Standard). Those addresses are never published.
 
@@ -276,15 +308,15 @@ Available everywhere:
 
 In `base.html`: `body` is the rendered page.
 
-An item (any page) has `title`, `slug`, `url`, `type`, `date` (`2026-10-20`), `dateDisplay` (`October 20, 2026`), `summary`, `tags`, `cover`, `content` (rendered HTML), plus any other header keys. Posts and products also have `categoryLinks` (list of `title`, `url` for the published categories they're in). Products also have `price`, `buy` and `buyLabel`.
+An item (any page) has `title`, `slug`, `url`, `type`, `date` (`2026-10-20`), `dateDisplay` (`October 20, 2026`), `summary`, `tags`, `tagLinks` (`title`, `url` of each tag's page), `cover`, `content` (rendered HTML), plus any other header keys. Collection items also have `categoryLinks` (list of `title`, `url` for the published categories they're in), and items of selling collections `price`, `buy` and `buyLabel`.
 
-- `home.html`: `posts`, the list of published posts, and `page` with the Home page's fields and `content`.
-- `post.html`: `post`.
+`collection` (on main, category and item pages) has `id`, `name`, `itemName`, `itemsName`, `url` (the main page), `list`, `cards` and `gallery` (the list style), `columns`, `selling` and `emptyText`.
+
+- `home.html`: `posts`, the published items of every `onHome` collection, newest first, and `page` with the Home page's fields and `content`.
 - `page.html`: `page` (also carries the item's fields).
-- `blog-category.html`: `page` (the category's fields and `content`) and `posts`, its published posts, newest first.
-- `product.html`: `product`.
-- `shop-category.html`: `page` and `products`, its published products.
-- `shop.html`: `products`, every published product.
+- `collection.html`: `page` (the main or category page's fields and `content`), `collection`, `items` (each with `title`, `url`, `slug`, `draft`, and `date`/`dateDisplay`, `summary`, `image`, `price` when the collection lists them), `listing` (the items as HTML in the collection's list style) and `categoryNav` (HTML links to the main page and each category, when `listCategories` is on).
+- `item.html`: `item` (its fields, plus HTML `meta` (date, categories, tags and price, as the collection shows them), `actions` (the Buy button), `videoEmbed` and `pager`; `cover` is empty when covers are off) and `collection`.
+- `tags.html`: `tags` (every tag with published pages or files: `name`, `url`, `count`); on a tag's page also `tag` (`name`, `description`, `count` like "3 pages · 2 files") and `listing` (HTML: its pages (not link menus, the Template or 404 pages), then its photos as a gallery (each image's `-small` version, linking to the full one) and its other files as links).
 
 ## Theming
 
@@ -298,7 +330,9 @@ An item (any page) has `title`, `slug`, `url`, `type`, `date` (`2026-10-20`), `d
   "fontSize": 18,
   "h1Size": 32,
   "radius": 8,
-  "contentWidth": 40,
+  "contentWidth": 60,
+  "gutter": 20,
+  "fullWidthBars": false,
   "buttonStyle": "outline",
   "buttonRadius": 6,
   "buttonPaddingX": 16,
@@ -325,7 +359,7 @@ An item (any page) has `title`, `slug`, `url`, `type`, `date` (`2026-10-20`), `d
 }
 ```
 
-`appearance` is `auto` (follows the visitor's device), `light` or `dark`. The component settings are pixels except `buttonStyle` (`outline`, `filled`), `cardShadow` (`none`, `soft`, `strong`), `quoteColor` (`line`, `accent`) and the two true/false values. `navFont`, `navSize` (px) and `navWeight` (400, 600 or 700) style the top bar's links; an empty `navFont` uses the headings font, and a font named there is loaded like the body and heading fonts. `navLight` and `navDark` color the links (`link`), hovered links (`hover`), the current page's link (`current`) and links being clicked (`pressed`) in each appearance, as `#rrggbb`; empty follows the palette (secondary text, text, text, and the hover color). Corner radii missing from older files follow `radius` as the theme did before (buttons ×0.75, cards ×1.25, covers, code blocks and menus ×1). Fonts are built-in stacks (`system-sans`, `system-serif`, `system-rounded`, `system-mono`), Google Fonts from CardStock's list named in lowercase with hyphens (`lora`, `source-serif-4`), or web fonts added by link, written as `custom:<family>`.
+`appearance` is `auto` (follows the visitor's device), `light` or `dark`. The component settings are pixels except `buttonStyle` (`outline`, `filled`), `cardShadow` (`none`, `soft`, `strong`), `quoteColor` (`line`, `accent`) and the two true/false values. `contentWidth` (rem; 60 = 960 px) is the content container's width for the top bar, page and footer, `gutter` (px) the space at the window's edges, and `fullWidthBars` lets the top bar and footer span the window. `navFont`, `navSize` (px) and `navWeight` (400, 600 or 700) style the top bar's links; an empty `navFont` uses the headings font, and a font named there is loaded like the body and heading fonts. `navLight` and `navDark` color the links (`link`), hovered links (`hover`), the current page's link (`current`) and links being clicked (`pressed`) in each appearance, as `#rrggbb`; empty follows the palette (secondary text, text, text, and the hover color). Corner radii missing from older files follow `radius` as the theme did before (buttons ×0.75, cards ×1.25, covers, code blocks and menus ×1). Fonts are built-in stacks (`system-sans`, `system-serif`, `system-rounded`, `system-mono`), Google Fonts from CardStock's list named in lowercase with hyphens (`lora`, `source-serif-4`), or web fonts added by link, written as `custom:<family>`.
 
 Web fonts added by link live in `theme/fonts.json`, so they stay in the site's font menus whatever style is in use:
 
@@ -351,6 +385,8 @@ When the file exists, CardStock adds a `<style id="cardstock-theme">` block (and
 | `--font-size`     | `fontSize` (px)      |
 | `--h1-size`       | `h1Size` (px)        |
 | `--radius`        | `radius` (px)        |
+| `--gutter`        | `gutter` (px)        |
+| `--bar-width`     | `none` when `fullWidthBars`, else `var(--measure)` |
 | `--measure`       | `contentWidth` (rem) |
 | `--bg`            | `background`         |
 | `--card`          | `surface`            |

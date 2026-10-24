@@ -3,7 +3,7 @@ import SwiftUI
 
 /// One page of the Configuration view.
 enum ConfigPage: String, CaseIterable, Identifiable {
-    case site, templates, layouts, fonts, colors, topBar, footer, components, newsletter, search
+    case site, collections, tags, templates, layouts, fonts, colors, topBar, footer, components, newsletter, search
 
     var id: Self { self }
 
@@ -19,8 +19,10 @@ enum ConfigPage: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .site: "Site Details"
+        case .collections: "Collections"
+        case .tags: "Tags"
         case .templates: "Template"
-        case .layouts: "Layouts"
+        case .layouts: "Layout"
         case .fonts: "Fonts"
         case .colors: "Colors"
         case .topBar: "Top Navigation Bar"
@@ -34,8 +36,10 @@ enum ConfigPage: String, CaseIterable, Identifiable {
     var summary: String {
         switch self {
         case .site: "Title, address and storage"
+        case .collections: "Blog, shop, portfolio and more"
+        case .tags: "Every tag and its page"
         case .templates: "Saved looks to switch between"
-        case .layouts: "Ways to arrange a page"
+        case .layouts: "Page width and page layouts"
         case .fonts: "Typefaces and text sizes"
         case .colors: "Light and dark colors"
         case .topBar: "Menu, logo and bar style"
@@ -49,6 +53,8 @@ enum ConfigPage: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .site: "globe"
+        case .collections: "square.stack.3d.up"
+        case .tags: "tag"
         case .templates: "swatchpalette"
         case .layouts: "rectangle.3.group"
         case .fonts: "textformat"
@@ -132,6 +138,10 @@ struct ConfigurationView<Preview: View>: View {
             SiteDetailsView(site: site)
         } else if model.configPage == .layouts {
             LayoutsView()
+        } else if model.configPage == .collections {
+            CollectionsView()
+        } else if model.configPage == .tags {
+            TagsView()
         } else {
             ThemingView(page: model.configPage)
         }

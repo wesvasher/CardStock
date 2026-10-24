@@ -2,7 +2,7 @@
 title: Markdown cheat sheet
 category: Writing
 summary: Headings, bold, links, lists and more.
-order: 2
+order: 4
 ---
 
 Markdown is plain text with a few symbols for formatting. What you type on the left becomes the page on the right.

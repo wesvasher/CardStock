@@ -16,14 +16,17 @@ struct PagesView: View {
     enum PageFilter: Hashable {
         case all
         case type(ContentKind)
+        /// A collection's main page, items and categories.
+        case collection(String)
         case published
         case drafts
         case inMenu
 
-        var title: String {
+        func title(_ config: SiteConfig) -> String {
             switch self {
             case .all: "All Pages"
-            case .type(let kind): kind.pluralName
+            case .type(let kind): config.pluralName(kind)
+            case .collection(let id): config.collection(id)?.name ?? id
             case .published: "Published"
             case .drafts: "Drafts"
             case .inMenu: "In Menu"
@@ -38,10 +41,26 @@ struct PagesView: View {
         case recent = "Recently Edited"
     }
 
+    private var config: SiteConfig { (model.site ?? site).config }
+
+    /// Kinds in list order: static pages, each collection (main page,
+    /// items, categories), link menus.
+    private var kindOrder: [ContentKind] {
+        [.page] + config.collections.flatMap { [$0.mainKind, $0.itemKind, $0.categoryKind] } + [.links]
+    }
+
+    private func orderIndex(_ kind: ContentKind) -> Int {
+        kindOrder.firstIndex(of: kind) ?? kindOrder.count
+    }
+
     /// Every page, Home first, then by type.
     private var pages: [ContentItem] {
         let current = model.site ?? site
-        return ContentKind.allCases.flatMap { current.items($0) }
+        return current.items.enumerated().sorted { a, b in
+            if a.element.isHome != b.element.isHome { return a.element.isHome }
+            let (x, y) = (orderIndex(a.element.kind), orderIndex(b.element.kind))
+            return x != y ? x < y : a.offset < b.offset
+        }.map(\.element)
     }
 
     private var menuURLs: Set<String> { Set((model.site ?? site).config.menuLinks.map(\.url)) }
@@ -56,6 +75,7 @@ struct PagesView: View {
                 case .drafts: page.isDraft
                 case .inMenu: menu.contains(page.path)
                 case .type(let kind): page.kind == kind
+                case .collection(let id): page.kind.collectionID == id
                 }
             }
             .filter { page in
@@ -69,8 +89,7 @@ struct PagesView: View {
                 switch sort {
                 case .title: return a.title.localizedStandardCompare(b.title) == .orderedAscending
                 case .type:
-                    let order = ContentKind.allCases
-                    let (x, y) = (order.firstIndex(of: a.kind)!, order.firstIndex(of: b.kind)!)
+                    let (x, y) = (orderIndex(a.kind), orderIndex(b.kind))
                     if x != y { return x < y }
                     // Posts newest first, everything else by title.
                     if a.date != b.date { return a.date > b.date }
@@ -166,12 +185,14 @@ struct PagesView: View {
         Menu {
             Section("Show") {
                 Picker("Show", selection: $filter) {
-                    Text(PageFilter.all.title).tag(PageFilter.all)
-                    ForEach(ContentKind.allCases) { kind in
-                        Text(kind.pluralName).tag(PageFilter.type(kind))
+                    Text(PageFilter.all.title(config)).tag(PageFilter.all)
+                    Text("Static Pages").tag(PageFilter.type(.page))
+                    ForEach(config.collections) { c in
+                        Text(c.name).tag(PageFilter.collection(c.id))
                     }
+                    Text("Link Menus").tag(PageFilter.type(.links))
                     Divider()
-                    ForEach([PageFilter.published, .drafts, .inMenu], id: \.self) { Text($0.title).tag($0) }
+                    ForEach([PageFilter.published, .drafts, .inMenu], id: \.self) { Text($0.title(config)).tag($0) }
                 }
                 .pickerStyle(.inline)
                 .labelsHidden()
@@ -194,7 +215,7 @@ struct PagesView: View {
         .menuIndicator(.hidden)
         .buttonStyle(.plain)
         .roundGlass(30)
-        .help("Showing \(filter.title) · \(sort.rawValue)")
+        .help("Showing \(filter.title(config)) · \(sort.rawValue)")
     }
 
     private var footer: some View {
@@ -235,7 +256,7 @@ struct PagesView: View {
             }
         } icon: {
             Image(systemName: page.isHome ? "house" : page.isNotFoundPage ? "exclamationmark.triangle"
-                  : page.isTemplatePage ? "swatchpalette" : page.isSearchPage ? "magnifyingglass" : page.kind.systemImage)
+                  : page.isTemplatePage ? "swatchpalette" : page.isSearchPage ? "magnifyingglass" : config.systemImage(page.kind))
         }
         .padding(.vertical, 2)
     }
@@ -249,7 +270,7 @@ struct PagesView: View {
         if page.isSearchPage {
             return (model.site ?? site).config.search.enabled ? "Search · \(page.path)" : "Search · Off"
         }
-        var parts = [page.isHome ? "Home" : page.isNotFoundPage ? "Broken links" : page.kind.singularName, page.path]
+        var parts = [page.isHome ? "Home" : page.isNotFoundPage ? "Broken links" : config.singularName(page.kind), page.path]
         if let layout = model.site?.layouts.first(where: { $0.id == page.layout }) { parts.append(layout.name) }
         if page.isDraft && !page.isHome { parts.append("Draft") }
         if menuURLs.contains(page.path) { parts.append("In Menu") }

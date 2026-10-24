@@ -198,6 +198,8 @@ struct DetailView: View {
         case .layouts: SiteRenderer.layoutPreviewPath(model.previewLayoutID)
         case .newsletter: SiteRenderer.newsletterPreviewPath
         case .search: "/\(ContentItem.searchSlug)/"
+        case .collections: model.previewCollectionPath
+        case .tags: model.previewTagPath
         default: SiteRenderer.templatePagePath
         }
     }
@@ -361,19 +363,19 @@ struct NewItemSheet: View {
         _kind = State(initialValue: kind)
     }
 
+    private var config: SiteConfig { model.site?.config ?? SiteConfig() }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("New \(kind.singularName)")
+            Text("New \(config.singularName(kind))")
                 .font(.headline)
             TextField("Title", text: $title)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit(create)
             Picker("Type", selection: $kind) {
-                ForEach(ContentKind.allCases) { kind in
-                    Label(kind.singularName, systemImage: kind.systemImage).tag(kind)
-                }
+                PageKindOptions.options(config)
             }
-            Text(kind.summary)
+            Text(config.summary(kind))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -400,6 +402,32 @@ struct NewItemSheet: View {
         guard !trimmed.isEmpty else { return }
         model.newItem(kind, title: trimmed)
         dismiss()
+    }
+}
+
+/// The page types to choose from in a Type menu: static page, each
+/// collection's items and categories, and link menus.
+enum PageKindOptions {
+    @ViewBuilder
+    static func options(_ config: SiteConfig, current: ContentKind? = nil) -> some View {
+        Label("Static Page", systemImage: "doc.text").tag(ContentKind.page)
+        ForEach(config.collections) { c in
+            Section(c.name) {
+                Label(c.itemName, systemImage: c.icon).tag(c.itemKind)
+                if c.categories {
+                    Label(c.categoryName, systemImage: "folder").tag(c.categoryKind)
+                }
+            }
+        }
+        // A page whose collection isn't in site.json keeps its type.
+        if let current, current.collectionID != nil, !config.kinds.contains(current), !current.isMain {
+            Section("Missing Collection") {
+                Text("\(current.rawValue) (no such collection)").tag(current)
+            }
+        }
+        Section {
+            Label("Link Menu", systemImage: "link").tag(ContentKind.links)
+        }
     }
 }
 
