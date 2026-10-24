@@ -93,12 +93,12 @@ struct ImageTests {
         let post = root.appending(path: "pages/hello-world.md")
         var text = try String(contentsOf: post, encoding: .utf8)
 
-        var html = try SiteRenderer(site: Site.load(from: root)).render(path: "/posts/hello-world/") ?? ""
+        var html = try SiteRenderer(site: Site.load(from: root)).render(path: "/blog/pages/hello-world/") ?? ""
         #expect(!html.contains("cardstock-lightbox"))
 
         text += "\n[![A](/media/posts/hello-world/a-small.jpg)](/media/posts/hello-world/a.jpg)\n"
         try text.write(to: post, atomically: true, encoding: .utf8)
-        html = try SiteRenderer(site: Site.load(from: root)).render(path: "/posts/hello-world/") ?? ""
+        html = try SiteRenderer(site: Site.load(from: root)).render(path: "/blog/pages/hello-world/") ?? ""
         #expect(html.contains(#"<style id="cardstock-lightbox">"#))
         #expect(html.contains(#"<script id="cardstock-lightbox-script">"#))
         let script = try #require(html.range(of: "cardstock-lightbox-script"))

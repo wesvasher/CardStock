@@ -59,7 +59,7 @@ struct ThemingView: View {
             }
 
             switch page {
-            case .site, .layouts, .collections, .tags:
+            case .site, .layouts, .collections, .folders, .tags:
                 EmptyView()
             case .templates:
                 StylesSection()

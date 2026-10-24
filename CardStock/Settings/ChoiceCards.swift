@@ -33,7 +33,7 @@ struct ChoiceCards<Value: Hashable>: View {
     }
 }
 
-private struct ChoiceCard: View {
+struct ChoiceCard: View {
     let title: String
     let systemImage: String
     let help: String

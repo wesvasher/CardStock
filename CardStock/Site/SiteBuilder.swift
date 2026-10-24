@@ -13,9 +13,6 @@ enum SiteBuilder {
         let output = site.root.appending(path: "public")
         var warnings: [String] = []
 
-        for item in site.items where item.kind == .page && Site.reservedSlugs.contains(item.slug) {
-            warnings.append("pages/\(item.slug).md uses a reserved name and is hidden by /\(item.slug)/.")
-        }
         for item in site.items where item.title == item.slug && item.frontMatter["title"] == nil {
             warnings.append("\(item.kind.folder)/\(item.slug).md has no title.")
         }

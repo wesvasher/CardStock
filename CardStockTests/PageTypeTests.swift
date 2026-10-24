@@ -19,11 +19,11 @@ struct PageTypeTests {
 
     @Test func typeComesFromFrontMatter() {
         var item = ContentItem(fileURL: URL(filePath: "/s/pages/mug.md"), text: "---\ntitle: Mug\ntype: product\n---\n")
-        #expect(item.kind == .product && item.path == "/shop/mug/")
+        #expect(item.kind == .product && item.path == "/shop/pages/mug/")
         item.kind = .page
-        #expect(item.frontMatter["type"] == nil && item.path == "/mug/")
+        #expect(item.frontMatter["type"] == nil && item.path == "/pages/mug/")
         item.kind = .post
-        #expect(item.frontMatter.string("type") == "post" && !item.date.isEmpty && item.path == "/posts/mug/")
+        #expect(item.frontMatter.string("type") == "post" && !item.date.isEmpty && item.path == "/blog/pages/mug/")
         // Home is always a static page.
         let home = ContentItem(fileURL: URL(filePath: "/s/pages/index.md"), text: "---\ntitle: Home\ntype: post\n---\n")
         #expect(home.kind == .page && home.path == "/")
@@ -48,17 +48,17 @@ struct PageTypeTests {
 
         site = try Site.load(from: root)
         let old = try #require(site.items.first { $0.slug == "old-post" })
-        #expect(old.kind == .post && old.path == "/posts/old-post/" && old.body == "Hi")
+        #expect(old.kind == .post && old.path == "/blog/pages/old-post/" && old.body == "Hi")
         // A post whose name a page already had gets a new name, and a redirect.
         #expect(site.items.first { $0.slug == "about-2" }?.kind == .post)
         let bridge = try #require(site.items.first { $0.slug == "bridge" })
-        #expect(bridge.kind == .page && bridge.path == "/bridge/")
+        #expect(bridge.kind == .page && bridge.path == "/pages/bridge/")
         #expect(!site.config.nav.contains { $0.title == "Portfolio" })
         #expect(site.config.nav.contains { $0.title == "Contact" })
 
         let redirects = try String(contentsOf: root.appending(path: "static/_redirects"), encoding: .utf8)
-        #expect(redirects.contains("/portfolio/bridge/ /bridge/ 301"))
-        #expect(redirects.contains("/posts/about/ /posts/about-2/ 301"))
+        #expect(redirects.contains("/portfolio/bridge/ /pages/bridge/ 301"))
+        #expect(redirects.contains("/posts/about/ /blog/pages/about-2/ 301"))
         #expect(redirects.contains("/portfolio/ / 301"))
 
         // Nothing to do the second time.
@@ -77,20 +77,20 @@ struct PageTypeTests {
 
         let renderer = try SiteRenderer(site: Site.load(from: root))
         let paths = renderer.paths
-        #expect(paths.contains("/blog/travel/") && paths.contains("/shop/cups/") && paths.contains("/shop/blue-mug/") && paths.contains("/shop/"))
+        #expect(paths.contains("/blog/pages/travel/") && paths.contains("/shop/pages/cups/") && paths.contains("/shop/pages/blue-mug/") && paths.contains("/shop/"))
 
-        let travel = try #require(renderer.render(path: "/blog/travel/"))
-        #expect(travel.contains("Trips I took.") && travel.contains(#"href="/posts/kyoto/""#))
+        let travel = try #require(renderer.render(path: "/blog/pages/travel/"))
+        #expect(travel.contains("Trips I took.") && travel.contains(#"href="/blog/pages/kyoto/""#))
         #expect(!travel.contains("Secret Trip"))
 
-        let kyoto = try #require(renderer.render(path: "/posts/kyoto/"))
-        #expect(kyoto.contains(#"<a class="category" href="/blog/travel/">Travel</a>"#))
-        #expect(kyoto.contains(#"<a class="category" href="/blog/notes/">Notes</a>"#))
+        let kyoto = try #require(renderer.render(path: "/blog/pages/kyoto/"))
+        #expect(kyoto.contains(#"<a class="category" href="/blog/pages/travel/">Travel</a>"#))
+        #expect(kyoto.contains(#"<a class="category" href="/blog/pages/notes/">Notes</a>"#))
 
-        let cups = try #require(renderer.render(path: "/shop/cups/"))
-        #expect(cups.contains(#"href="/shop/blue-mug/""#) && cups.contains("$24") && !cups.contains("Plate"))
+        let cups = try #require(renderer.render(path: "/shop/pages/cups/"))
+        #expect(cups.contains(#"href="/shop/pages/blue-mug/""#) && cups.contains("$24") && !cups.contains("Plate"))
 
-        let mug = try #require(renderer.render(path: "/shop/blue-mug/"))
+        let mug = try #require(renderer.render(path: "/shop/pages/blue-mug/"))
         #expect(mug.contains(#"<p class="price">$24</p>"#))
         #expect(mug.contains(#"<a class="button buy" href="https://buy.stripe.com/abc" target="_blank" rel="noopener">Buy Now</a>"#))
 
@@ -105,7 +105,40 @@ struct PageTypeTests {
             try FileManager.default.removeItem(at: root.appending(path: "theme/\(name).html"))
         }
         try write("---\ntype: product\ntitle: Mug\nprice: $5\n---\n", "pages/mug.md", in: root)
-        let html = try SiteRenderer(site: Site.load(from: root)).render(path: "/shop/mug/")
+        let html = try SiteRenderer(site: Site.load(from: root)).render(path: "/shop/pages/mug/")
         #expect(html?.contains(#"<p class="price">$5</p>"#) == true)
+    }
+
+    @Test func olderSitesMoveToTheNewAddresses() throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let root = try starter()
+        var site = try Site.load(from: root)
+        site.config.addressVersion = 1
+        site.config.nav = [.init(title: "About", url: "/about"), .init(title: "Shop", url: "/shop/"),
+                           .init(title: "Away", url: "https://example.com/about/")]
+        site.config.footer.links = [.init(title: "Hello", url: "/posts/hello-world/#top")]
+        try site.saveConfig()
+        try write("---\ntype: product\ntitle: Mug\n---\nSee [About](/about/), [Notes](/blog/notes/?x=1), <a href=\"/posts/hello-world/index.html\">hi</a>, [Shop](/shop/), [file](/media/a.jpg) and [nothing](/gone/).", "pages/mug.md", in: root)
+
+        #expect(try SiteMigration.moveAddresses(in: root) > 0)
+        site = try Site.load(from: root)
+        #expect(site.config.addressVersion == SiteConfig.currentAddressVersion)
+        #expect(site.config.nav.map(\.url) == ["/pages/about/", "/shop/", "https://example.com/about/"])
+        #expect(site.config.footer.links[0].url == "/blog/pages/hello-world/#top")
+        let mug = try #require(site.items.first { $0.slug == "mug" })
+        #expect(mug.path == "/shop/pages/mug/")
+        #expect(mug.body.trimmingCharacters(in: .whitespacesAndNewlines) == "See [About](/pages/about/), [Notes](/blog/pages/notes/?x=1), <a href=\"/blog/pages/hello-world/\">hi</a>, [Shop](/shop/), [file](/media/a.jpg) and [nothing](/gone/).")
+        let redirects = try String(contentsOf: root.appending(path: "static/_redirects"), encoding: .utf8)
+        for line in ["/about/ /pages/about/ 301", "/posts/hello-world/ /blog/pages/hello-world/ 301",
+                     "/blog/notes/ /blog/pages/notes/ 301", "/shop/mug/ /shop/pages/mug/ 301", "/search/ /pages/search/ 301"] {
+            #expect(redirects.contains(line), "missing \(line)")
+        }
+        #expect(!redirects.contains("/shop/ ") && !redirects.contains("/404.html"))
+        // Once only; new sites start on the new addresses.
+        #expect(try SiteMigration.moveAddresses(in: root) == 0)
+        let fresh = dir.appending(path: "Fresh")
+        try StarterSite.create(at: fresh, title: "Fresh")
+        #expect(try SiteMigration.moveAddresses(in: fresh) == 0)
+        #expect(try Site.load(from: fresh).config.nav.map(\.url) == ["/blog/", "/pages/about/"])
     }
 }

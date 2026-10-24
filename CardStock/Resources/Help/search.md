@@ -2,15 +2,15 @@
 title: Add search to your site
 category: Writing
 summary: A search page, plus search boxes you can put in any page.
-order: 8
+order: 9
 ---
 
-Every site has a **Search** page at `/search/`. Visitors type in its search field and matching pages show as they type, with the words they searched for highlighted. It works on its own: there's no search service, account or cost, and searches stay in the visitor's browser.
+Every site has a **Search** page at `/pages/search/`. Visitors type in its search field and matching pages show as they type, with the words they searched for highlighted. It works on its own: there's no search service, account or cost, and searches stay in the visitor's browser.
 
 ## Link to the search page
 
-- Open [Search](cardstock:search) in Configuration and click **Add Search to the Top Bar**, or add a link to `/search/` yourself in [Top Navigation Bar](cardstock:top-bar) or [Footer](cardstock:footer). The page menu next to a link's address lists **Search** too.
-- To open the page with a search already done, add `?q=` and the words, such as `/search/?q=soup`.
+- Open [Search](cardstock:search) in Configuration and click **Add Search to the Top Bar**, or add a link to `/pages/search/` yourself in [Top Navigation Bar](cardstock:top-bar) or [Footer](cardstock:footer). The page menu next to a link's address lists **Search** too.
+- To open the page with a search already done, add `?q=` and the words, such as `/pages/search/?q=soup`.
 
 ## Put a search box in a page
 

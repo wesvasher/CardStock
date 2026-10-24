@@ -1,10 +1,11 @@
 {
+  "addressVersion" : 2,
   "author" : "",
   "description" : "Notes and work.",
   "language" : "en",
   "nav" : [
     { "title" : "Blog", "url" : "/blog/" },
-    { "title" : "About", "url" : "/about/" }
+    { "title" : "About", "url" : "/pages/about/" }
   ],
   "title" : "My Site",
   "url" : ""

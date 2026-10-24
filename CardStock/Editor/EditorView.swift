@@ -81,20 +81,13 @@ struct EditorView: View {
                             LayoutPicker(item: current, layout: field("layout"))
                         }
                     }
-                    if kind != .links {
+                    // Addresses are set by CardStock (a page's type and
+                    // collection), so there's nothing to edit here.
+                    if kind != .links && !current.isHome && !current.isTemplatePage && !current.isSearchPage && !kind.isMain {
                         GridRow {
-                            label("Address")
-                            HStack {
-                                Text(current.isHome ? "/ (your site's main address)"
-                                     : current.isTemplatePage ? "Preview only, never published"
-                                     : current.path)
-                                    .foregroundStyle(.secondary)
-                                    .textSelection(.enabled)
-                                Spacer()
-                                if !current.isHome && !current.isTemplatePage && !current.isSearchPage && !kind.isMain {
-                                    Toggle("Draft", isOn: binding(\.isDraft))
-                                }
-                            }
+                            label("Status")
+                            Toggle("Draft", isOn: binding(\.isDraft))
+                                .help("Drafts show in the preview but aren't published")
                         }
                     }
                     if kind.isItem, let collection {
@@ -447,35 +440,87 @@ private struct CategoryPicker: View {
     }
 }
 
-/// A page's layout: Standard (the type's own design) or one of the site's
-/// layouts that suits its type, with a line about what it does.
+/// A page's layout as an accordion: closed, it shows the current layout
+/// (Standard is the type's own design); open, every layout that suits the
+/// page's type is a card, and picking one animates the selection.
 private struct LayoutPicker: View {
     @Environment(AppModel.self) private var model
     let item: ContentItem
     @Binding var layout: String
+    @State private var isOpen = false
 
     private var layouts: [PageLayout] { model.site?.layouts ?? [] }
     private var chosen: PageLayout? { layouts.first { $0.id == item.layout } }
+    private var isMissing: Bool { !item.layout.isEmpty && chosen == nil }
+
+    private var currentName: String {
+        if isMissing { return "Missing: \(item.layout)" }
+        return chosen?.name ?? "Standard"
+    }
+    private var currentImage: String {
+        if isMissing { return "exclamationmark.triangle" }
+        return chosen?.systemImage ?? PageLayout.standardImage
+    }
+
+    private var options: [ChoiceCards<String>.Option] {
+        var list: [ChoiceCards<String>.Option] = [
+            .init(value: "", title: "Standard", systemImage: PageLayout.standardImage,
+                  help: "The page type's own design"),
+        ]
+        for layout in layouts where layout.suits(item.kind) || layout.id == item.layout {
+            list.append(.init(value: layout.id, title: layout.name, systemImage: layout.systemImage,
+                              help: layout.description))
+        }
+        if isMissing {
+            list.append(.init(value: item.layout, title: "Missing", systemImage: "exclamationmark.triangle",
+                              help: "There's no “\(item.layout)” in theme/layouts"))
+        }
+        return list
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                Picker("Layout", selection: $layout) {
-                    Text("Standard").tag("")
-                    let suited = layouts.filter { $0.suits(item.kind) || $0.id == item.layout }
-                    if !suited.isEmpty { Divider() }
-                    ForEach(suited) { layout in
-                        Text(layout.name).tag(layout.id)
+                Button {
+                    withAnimation(.snappy(duration: 0.3)) { isOpen.toggle() }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(isOpen ? 90 : 0))
+                        Image(systemName: currentImage)
+                            .foregroundStyle(isMissing ? AnyShapeStyle(.orange) : AnyShapeStyle(.tint))
+                            .frame(width: 18)
+                            .contentTransition(.symbolEffect(.replace))
+                        Text(currentName)
+                            .contentTransition(.opacity)
                     }
-                    if !item.layout.isEmpty && chosen == nil {
-                        Text("Missing: \(item.layout)").tag(item.layout)
-                    }
+                    .contentShape(Rectangle())
                 }
-                .labelsHidden()
-                .fixedSize()
+                .buttonStyle(.plain)
+                .help(isOpen ? "Hide the layouts" : "Show the layouts")
+                .accessibilityLabel("Layout: \(currentName)")
+                .accessibilityHint(isOpen ? "Hides the layouts" : "Shows the layouts")
+                Spacer(minLength: 0)
                 Button("Layouts…") { model.showConfiguration(.layouts) }
                     .buttonStyle(.link)
                     .controlSize(.small)
+            }
+            if isOpen {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 96, maximum: 140), spacing: 10)],
+                          alignment: .leading, spacing: 10) {
+                    ForEach(options, id: \.value) { option in
+                        ChoiceCard(title: option.title, systemImage: option.systemImage, help: option.help,
+                                   isSelected: layout == option.value) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                layout = option.value
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 2)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
             if let note {
                 Text(note)
@@ -484,6 +529,7 @@ private struct LayoutPicker: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .clipped()
     }
 
     private var note: String? {

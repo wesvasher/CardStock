@@ -6,9 +6,9 @@ import Foundation
 /// or videos. Saved in site.json (`collections`), edited in
 /// Configuration → Collections.
 ///
-/// The `id` is also the address: the main page is `/<id>/`, items are
-/// `/<id>/<slug>/` (the blog's are `/posts/<slug>/`), and categories are
-/// `/<id>/<slug>/`. Pages say which collection they're in with `type:`
+/// The `id` is also the address: the main page is `/<id>/`, and every
+/// other page in the collection (items and categories) is
+/// `/<id>/pages/<slug>/`. Pages say which collection they're in with `type:`
 /// front matter: the item type (`post` for the blog, `product` for the
 /// shop, else the id) or the category type (`<id>-category`). The main
 /// page is `pages/<id>.md` with `type: collection`.
@@ -238,9 +238,6 @@ struct ContentCollection: Codable, Equatable, Sendable, Identifiable {
 
     static func categoryType(_ id: String) -> String { id + "-category" }
 
-    /// The folder in item addresses: `posts` for the blog, else the id.
-    static func itemFolder(_ id: String) -> String { id == blogID ? "posts" : id }
-
     var itemType: String { Self.itemType(id) }
     var categoryType: String { Self.categoryType(id) }
     var mainPath: String { "/\(id)/" }
@@ -279,8 +276,11 @@ struct ContentCollection: Codable, Equatable, Sendable, Identifiable {
         if reservedIDs.contains(id) || id.hasSuffix("-category") || id.hasPrefix("_") {
             return "“\(id)” is used by CardStock. Choose another address."
         }
-        if site.config.collections.contains(where: { $0.id == id || itemFolder($0.id) == id }) {
+        if site.config.collections.contains(where: { $0.id == id }) {
             return "Another collection uses /\(id)/."
+        }
+        if site.config.folders.contains(where: { $0.name == id }) {
+            return "/\(id)/ is one of your folders (Configuration → Folders)."
         }
         if let page = site.items.first(where: { $0.slug == id }) {
             return "The page “\(page.title)” is already named \(id)."
@@ -398,7 +398,13 @@ enum ContentKind: Hashable, Sendable, Identifiable {
     /// Where images added in the editor go, inside media/.
     var mediaFolder: String { self == .post ? "posts" : "pages" }
 
-    /// Published path for a page of this type with this slug.
+    /// The folder pages that aren't in a collection are published in.
+    static let pagesFolder = "pages"
+
+    /// Published path for a page of this type with this slug. Only
+    /// collections have addresses of their own (`/<id>/`); their items and
+    /// categories are in `/<id>/pages/`, and every other page in `/pages/`.
+    /// Home is the site's own address.
     func path(for slug: String) -> String {
         switch self {
         case .page:
@@ -406,13 +412,25 @@ enum ContentKind: Hashable, Sendable, Identifiable {
             case ContentItem.homeSlug: "/"
             case ContentItem.notFoundSlug: "/404.html"
             case ContentItem.templateSlug: SiteRenderer.templatePagePath
-            default: "/\(slug)/"
+            default: "/\(Self.pagesFolder)/\(slug)/"
             }
         case .main(let c): "/\(c)/"
-        case .item(let c): "/\(ContentCollection.itemFolder(c))/\(slug)/"
-        case .category(let c): "/\(c)/\(slug)/"
+        case .item(let c), .category(let c): "/\(c)/\(Self.pagesFolder)/\(slug)/"
         // Only shown in the preview; never published.
         case .links: "/links/\(slug)/"
+        }
+    }
+
+    /// Where a page was published before version 0.6: static pages at
+    /// `/<slug>/`, blog posts at `/posts/<slug>/`, and other items and
+    /// categories at `/<id>/<slug>/`. Used to redirect and update old links.
+    func legacyPath(for slug: String) -> String {
+        switch self {
+        case .page where ![ContentItem.homeSlug, ContentItem.notFoundSlug, ContentItem.templateSlug].contains(slug):
+            "/\(slug)/"
+        case .item(let c) where c == ContentCollection.blogID: "/posts/\(slug)/"
+        case .item(let c), .category(let c): "/\(c)/\(slug)/"
+        default: path(for: slug)
         }
     }
 }
@@ -712,4 +730,62 @@ extension Site {
         }
         return uses.values.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
+}
+
+/// A folder you make: a short address, like /subscribe/, that shows one of
+/// your pages. The page keeps its own address (the copy at the folder tells
+/// search engines which is the original); removing the folder only removes
+/// the shortcut. Saved in site.json (`folders`).
+struct Folder: Codable, Equatable, Sendable, Identifiable {
+    /// The folder's name in the address, e.g. `subscribe`.
+    var name: String
+    /// The file name (slug) of the page it shows, e.g. `subscribe` for
+    /// pages/subscribe.md.
+    var page: String
+
+    var id: String { name }
+    var path: String { "/\(name)/" }
+
+    /// A folder CardStock makes and uses itself.
+    struct System: Identifiable, Equatable {
+        var name: String
+        /// What it holds, e.g. "The Shop collection".
+        var detail: String
+        var id: String { name }
+        var path: String { "/\(name)/" }
+    }
+}
+
+extension SiteConfig {
+    /// The folders CardStock makes: one per collection, then the ones every
+    /// site has. They can't be removed or used for anything else.
+    var systemFolders: [Folder.System] {
+        collections.map { Folder.System(name: $0.id, detail: "The \($0.name) collection: its main page, and its \($0.itemsName.lowercased()) and categories in /\($0.id)/pages/") }
+            + [
+                .init(name: ContentKind.pagesFolder, detail: "Every page that isn't in a collection, like About and Search"),
+                .init(name: "tags", detail: "A page for each tag"),
+                .init(name: "media", detail: "Your photos and files"),
+                .init(name: "assets", detail: "Your theme's styles, fonts and scripts"),
+            ]
+    }
+
+    /// Why `name` can't be a new folder, or nil when it can. `except` is a
+    /// folder being edited, which may keep its name.
+    func folderProblem(_ name: String, except: String? = nil) -> String? {
+        if name.isEmpty { return "Type a name for the folder." }
+        if name != Site.slugify(name) { return "Use lowercase letters, numbers and hyphens, like subscribe or spring-sale." }
+        if let system = systemFolders.first(where: { $0.name == name }) {
+            return "/\(name)/ is made by CardStock (\(system.detail.prefix(1).lowercased() + system.detail.dropFirst())), so it can't be used."
+        }
+        if ContentCollection.reservedIDs.contains(name) || Site.reservedSlugs.contains(name) || name.hasPrefix("_")
+            || ["links", "feed", "search", "index"].contains(name) {
+            return "/\(name)/ is used by CardStock. Choose another name."
+        }
+        if name != except, folders.contains(where: { $0.name == name }) {
+            return "You already have a /\(name)/ folder."
+        }
+        return nil
+    }
+
+    func folder(at path: String) -> Folder? { folders.first { $0.path == path } }
 }

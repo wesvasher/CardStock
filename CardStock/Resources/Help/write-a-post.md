@@ -10,7 +10,7 @@ Everything on your site is a page, and every page has a type. Find them all in [
 ## Make a page
 
 1. Click **New Page…** at the bottom of [Pages](cardstock:pages), or **New Post** or **New Page** on the **Start** screen.
-2. Type a title and choose a **Type**. The window shows the address it will have, such as `/posts/my-trip/`.
+2. Type a title and choose a **Type**. CardStock gives the page its address from its type and title, like `/pages/contact/` or `/blog/pages/my-trip/`. See [page addresses](help:collections).
 3. Click **Create** and start writing below the details.
 
 CardStock saves as you type. There's no Save button to remember. You can change a page's type at any time with **Type** in the editor.
@@ -19,9 +19,9 @@ CardStock saves as you type. There's no Save button to remember. You can change 
 
 | Type | What it is | Address |
 |---|---|---|
-| Static Page | A page on its own, like About or Contact. Link to it from the menu, the footer or other pages | `/about/` |
-| An item in a collection | A blog post, a product, a project, a video, … Each collection's items are listed on its main page | `/posts/my-trip/`, `/work/bridge/` |
-| A collection's category | Your text, then the items you put in that category | `/blog/travel/` |
+| Static Page | A page on its own, like About or Contact. Link to it from the menu, the footer or other pages | `/pages/about/` |
+| An item in a collection | A blog post, a product, a project, a video, … Each collection's items are listed on its main page | `/blog/pages/my-trip/`, `/work/pages/bridge/` |
+| A collection's category | Your text, then the items you put in that category | `/blog/pages/travel/` |
 | Link Menu | A list of links for a drop-down menu in the footer. Not a page of its own | — |
 
 The **Type** menu lists your collections by name, such as **Post** under Blog and **Product** under Shop. Set up collections (and add new ones, like a Portfolio or Videos) in [Collections](cardstock:collections). See [Collections](help:collections).
@@ -66,7 +66,7 @@ Open it and click **Move to Trash…** at the bottom of the editor. The Markdown
 
 Older sites kept posts in `posts/` and portfolio projects in `projects/`. When you open one, CardStock moves them all into `pages/` once:
 
-- Posts become **Blog Posts** and keep their addresses.
-- Projects become **Static Pages** at `/<name>/`. Their old `/portfolio/` addresses redirect to the new ones, and a menu link named **Portfolio** is removed.
+- Posts become **Blog Posts**.
+- Projects become **Static Pages**. Their old `/portfolio/` addresses redirect to the new ones, and a menu link named **Portfolio** is removed.
 
 > If you use CardStock on two Macs, update both and get the latest from GitHub on each before you open the site. Otherwise both Macs make the same move.

@@ -19,7 +19,7 @@ struct InsightsTests {
     }
 
     @Test func countsWords() {
-        #expect(SiteInsights.wordCount("Hello **big** world. ![A photo](/media/a.jpg) See [my page](/about/).") == 6)
+        #expect(SiteInsights.wordCount("Hello **big** world. ![A photo](/media/a.jpg) See [my page](/pages/about/).") == 6)
         #expect(SiteInsights.wordCount("") == 0)
     }
 
@@ -59,7 +59,7 @@ struct InsightsTests {
     @Test func healthChecks() throws {
         defer { try? FileManager.default.removeItem(at: dir) }
         let s = try site([
-            ("linky", "---\ntitle: Linky\ndate: 2026-10-01\n---\nSee [about](/about/), [nope](/nope/) and [draft](/posts/secret/). ![](/media/x.jpg)"),
+            ("linky", "---\ntitle: Linky\ndate: 2026-10-01\n---\nSee [about](/pages/about/), [nope](/nope/) and [draft](/blog/pages/secret/). ![](/media/x.jpg)"),
             ("secret", "---\ntitle: Secret\ndate: 2026-10-02\ndraft: true\n---\nhidden"),
         ])
         let checks = SiteInsights.healthChecks(s, files: [], outdatedThemeFiles: [])
@@ -78,8 +78,8 @@ struct InsightsTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         let s = try site()
         #expect(SiteInsights.linkStatus("/", in: s) == .ok)
-        #expect(SiteInsights.linkStatus("/about", in: s) == .ok)
-        #expect(SiteInsights.linkStatus("/about/#team", in: s) == .ok)
+        #expect(SiteInsights.linkStatus("/pages/about", in: s) == .ok)
+        #expect(SiteInsights.linkStatus("/pages/about/#team", in: s) == .ok)
         #expect(SiteInsights.linkStatus("/feed.xml", in: s) == .ok)
         #expect(SiteInsights.linkStatus("/missing/", in: s) == .missing)
     }

@@ -64,6 +64,12 @@ final class AppModel {
             ?? SiteRenderer.templatePagePath
     }
 
+    /// The folder previewed on Configuration → Folders.
+    var previewFolderName = ""
+    var previewFolderPath: String {
+        site?.config.folders.first { $0.name == previewFolderName }?.path ?? SiteRenderer.templatePagePath
+    }
+
     var previewTagPath: String {
         previewTagSlug.isEmpty ? TagSettings.path : TagSettings.path(previewTagSlug)
     }
@@ -144,6 +150,7 @@ final class AppModel {
         do {
             // Sites made before page types: everything moves into pages/.
             var migrated = SiteMigration.Result()
+            var movedAddresses = 0
             if Site.isSite(url) {
                 do {
                     migrated = try SiteMigration.run(in: url)
@@ -157,6 +164,12 @@ final class AppModel {
                 try? Site.ensureTemplatePage(in: url)
                 try? Site.ensureSearchPage(in: url)
                 try? PageLayout.ensureLayouts(in: url)
+                // Sites from before 0.6: pages move to /pages/ and /<collection>/pages/.
+                do {
+                    movedAddresses = try SiteMigration.moveAddresses(in: url)
+                } catch {
+                    errorMessage = "Couldn't move pages to their new addresses: \(error.localizedDescription)"
+                }
             }
             site = try Site.load(from: url)
             // Older sites get a project file so they can be opened by double-clicking.
@@ -193,6 +206,9 @@ final class AppModel {
                 if migrated.posts > 0 { parts.append("\(migrated.posts) \(migrated.posts == 1 ? "post" : "posts")") }
                 if migrated.projects > 0 { parts.append("\(migrated.projects) \(migrated.projects == 1 ? "project" : "projects")") }
                 statusMessage = "Moved \(ListFormatter.localizedString(byJoining: parts)) into pages/. Projects are now static pages."
+            }
+            if movedAddresses > 0 {
+                statusMessage = "Pages have new addresses: /pages/name/, and /blog/pages/name/ (and so on) for pages in a collection. Links in your pages, top bar and footer were updated, and the old addresses redirect to the new ones."
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -657,7 +673,13 @@ final class AppModel {
     }
 
     /// Writes a new page file, adds it to the site and (optionally) opens it.
+    /// Never replaces a file that's already there.
     private func write(_ fm: FrontMatter, body: String, to url: URL, open: Bool) -> Bool {
+        if let existing = site?.items.first(where: { $0.fileURL.standardizedFileURL == url.standardizedFileURL })
+            ?? (FileManager.default.fileExists(atPath: url.path) ? ContentItem(fileURL: url, text: "") : nil) {
+            errorMessage = "There's already a page in pages/\(url.lastPathComponent) (“\(existing.title)”), so CardStock didn't replace it."
+            return false
+        }
         do {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try FrontMatter.serialize(fm, body: body).write(to: url, atomically: true, encoding: .utf8)
@@ -701,6 +723,11 @@ final class AppModel {
         guard let site else { return }
         if let page = site.mainPage(of: collection) {
             selection = .item(page.id)
+            return
+        }
+        // Another page already has the main page's file name.
+        if let other = site.items.first(where: { $0.slug == collection.id }) {
+            errorMessage = "The \(collection.name) main page would be pages/\(collection.id).md, but that file is already the page “\(other.title)”. Rename or remove that file in Finder, then try again. Until then, \(collection.mainPath) lists the \(collection.itemsName.lowercased()) under the title “\(collection.name)”."
             return
         }
         var fm = FrontMatter()

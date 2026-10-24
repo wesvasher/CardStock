@@ -71,7 +71,7 @@ struct LayoutTests {
         let (site, post) = try site("hello-world", layout: "sidebar")
         let html = try SiteRenderer(site: site).render(post)
         #expect(html.contains(#"<p class="meta"><time datetime=""#))
-        #expect(html.contains(#"<a class="category" href="/blog/notes/">"#))
+        #expect(html.contains(#"<a class="category" href="/blog/pages/notes/">"#))
         #expect(html.contains("Recent posts") && html.contains("Categories"))
     }
 

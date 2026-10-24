@@ -2,7 +2,7 @@
 title: Change the site details
 category: Writing
 summary: Set your site's name, description and web address.
-order: 6
+order: 7
 ---
 
 Click **Configuration** in the sidebar, then [Site Details](cardstock:site-details) at the top of the list.

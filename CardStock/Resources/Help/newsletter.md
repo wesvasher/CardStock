@@ -2,7 +2,7 @@
 title: Add a mailing list sign-up
 category: Writing
 summary: Put a sign-up form from your newsletter service on any page.
-order: 7
+order: 8
 ---
 
 CardStock doesn't send newsletters itself. It shows the sign-up form from the service you use, such as Buttondown, Kit, Mailchimp, beehiiv or Substack, in a box you can put on any page.

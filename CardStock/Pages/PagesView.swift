@@ -274,6 +274,8 @@ struct PagesView: View {
         if let layout = model.site?.layouts.first(where: { $0.id == page.layout }) { parts.append(layout.name) }
         if page.isDraft && !page.isHome { parts.append("Draft") }
         if menuURLs.contains(page.path) { parts.append("In Menu") }
+        // Short addresses from Configuration → Folders.
+        for folder in config.folders where folder.page == page.slug { parts.append("Also \(folder.path)") }
         return parts.joined(separator: " · ")
     }
 

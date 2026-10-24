@@ -322,6 +322,14 @@ struct LinkRow: View {
             if config.tags.pages {
                 Button("Tags") { choose(TagSettings.path, title: "Tags") }
             }
+            if !config.folders.isEmpty {
+                Section("Your Folders") {
+                    ForEach(config.folders) { folder in
+                        let title = model.site?.items.first { $0.slug == folder.page }?.title ?? folder.name.capitalized
+                        Button("\(folder.path) (\(title))") { choose(folder.path, title: title) }
+                    }
+                }
+            }
             ForEach(config.kinds.filter { $0 != .links }, id: \.self) { kind in
                 let pages = (model.site?.items(kind) ?? []).filter { !$0.isHome && !$0.isTemplatePage }
                 if !pages.isEmpty {
@@ -353,12 +361,8 @@ struct LinkRow: View {
     /// True for an address on this site that no page, post or list has.
     private var isMissingPage: Bool {
         let url = links[index].url.trimmingCharacters(in: .whitespaces)
-        guard url.hasPrefix("/"), !url.hasPrefix("//"), url != "/",
-              !url.hasPrefix("/posts/"), !url.hasPrefix("/portfolio/"), !url.hasPrefix("/media/"),
-              !url.hasPrefix("/assets/"), !url.contains(".")
-        else { return false }
-        let normalized = url.hasSuffix("/") ? url : url + "/"
-        return !(model.site?.items.contains { $0.path == normalized } ?? false)
+        guard url.hasPrefix("/"), !url.hasPrefix("//"), let site = model.site else { return false }
+        return SiteInsights.linkStatus(url, in: site) == .missing
     }
 
     /// Makes a page named after the link, points the link at it, and opens it.

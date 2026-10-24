@@ -26,10 +26,10 @@ struct SearchTests {
         let site = try makeSite()
         let found = site.items.first(where: \.isSearchPage)
         let page = try #require(found)
-        #expect(page.path == "/search/" && page.isFixedPage && !page.canBeDeleted)
+        #expect(page.path == "/pages/search/" && page.isFixedPage && !page.canBeDeleted)
         let renderer = try SiteRenderer(site: site)
-        #expect(renderer.paths.contains("/search/") && renderer.paths.contains("/search.json"))
-        let html = try #require(renderer.render(path: "/search/"))
+        #expect(renderer.paths.contains("/pages/search/") && renderer.paths.contains("/search.json"))
+        let html = try #require(renderer.render(path: "/pages/search/"))
         #expect(html.contains(#"data-index="/search.json""#))
         #expect(html.contains(#"<input type="search" name="q" id="search-input" placeholder="Search""#))
         #expect(html.contains("Search every page and post on this site."))
@@ -50,7 +50,7 @@ struct SearchTests {
         #expect(!titles.contains("News"), "categories are off by default")
         #expect(!titles.contains("Search") && !titles.contains("Template") && !titles.contains("Home"))
         let recipes = try #require(entries.first { $0["title"] as? String == "Recipes" })
-        #expect(recipes["url"] as? String == "/recipes/" && recipes["type"] as? String == "Page")
+        #expect(recipes["url"] as? String == "/pages/recipes/" && recipes["type"] as? String == "Page")
         #expect(recipes["summary"] as? String == "Things to cook")
         #expect(recipes["text"] as? String == "A café recipe with a link & more.")
         let hello = try #require(entries.first { $0["title"] as? String == "Hello" })
@@ -75,9 +75,9 @@ struct SearchTests {
             $0.buttonLabel = "Go"
         }
         let renderer = try SiteRenderer(site: site)
-        let html = try #require(renderer.render(path: "/find/"))
+        let html = try #require(renderer.render(path: "/pages/find/"))
         #expect(html.components(separatedBy: #"<form class="search-box""#).count == 2, "one box; the line in code stays code")
-        #expect(html.contains(#"<form class="search-box" action="/search/" method="get" role="search"><input type="search" name="q" placeholder="Find a recipe" aria-label="Find a recipe"><button class="button" type="submit">Go</button></form>"#))
+        #expect(html.contains(#"<form class="search-box" action="/pages/search/" method="get" role="search"><input type="search" name="q" placeholder="Find a recipe" aria-label="Find a recipe"><button class="button" type="submit">Go</button></form>"#))
         #expect(html.components(separatedBy: ".search-box {").count == 2, "styles once")
         #expect(PageWidget.search.isUsed(in: site.items.first { $0.slug == "find" }!.body))
     }
@@ -86,9 +86,9 @@ struct SearchTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         let site = try makeSite(["find": "---\ntitle: Find\n---\n\n<!-- search -->\n"]) { $0.enabled = false }
         let renderer = try SiteRenderer(site: site)
-        #expect(!renderer.paths.contains("/search/") && !renderer.paths.contains("/search.json"))
-        #expect(!(renderer.render(path: "/find/") ?? "").contains("search-box"))
-        #expect((try SiteRenderer(site: site, includeDrafts: true).render(path: "/find/") ?? "").contains("Search is off"))
+        #expect(!renderer.paths.contains("/pages/search/") && !renderer.paths.contains("/search.json"))
+        #expect(!(renderer.render(path: "/pages/find/") ?? "").contains("search-box"))
+        #expect((try SiteRenderer(site: site, includeDrafts: true).render(path: "/pages/find/") ?? "").contains("Search is off"))
     }
 
     @Test func olderSitesGetTheSearchPage() throws {
@@ -99,7 +99,7 @@ struct SearchTests {
         try FileManager.default.removeItem(at: root.appending(path: "theme/search.html"))
         // Still rendered from the built-in template before the files come back.
         let before = try Site.load(from: root)
-        #expect((try SiteRenderer(site: before).render(path: "/search/") ?? "").contains("search-form"))
+        #expect((try SiteRenderer(site: before).render(path: "/pages/search/") ?? "").contains("search-form"))
         #expect(try Site.ensureSearchPage(in: root))
         #expect(FileManager.default.fileExists(atPath: root.appending(path: "pages/search.md").path))
         #expect(FileManager.default.fileExists(atPath: root.appending(path: "theme/search.html").path))

@@ -36,6 +36,27 @@ struct PageLayout: Identifiable, Equatable, Sendable {
     /// The line that splits a page's Markdown into sections.
     static let sectionBreak = "<!-- section -->"
 
+    /// An SF Symbol for menus and cards: the starter layouts have their own,
+    /// others get one from how many areas they have.
+    var systemImage: String {
+        switch id {
+        case "hero": "rectangle.topthird.inset.filled"
+        case "landing": "rectangle.stack"
+        case "sidebar": "sidebar.right"
+        case "two-columns": "rectangle.split.2x1"
+        case "wide": "arrow.left.and.right.square"
+        default:
+            switch areas.count {
+            case ...1: "rectangle"
+            case 2: "rectangle.split.2x1"
+            default: "rectangle.split.3x1"
+            }
+        }
+    }
+
+    /// The icon for Standard (no layout).
+    static let standardImage = "doc.text"
+
     func suits(_ kind: ContentKind) -> Bool {
         types.isEmpty || types.contains { Self.word($0, matches: kind) }
     }

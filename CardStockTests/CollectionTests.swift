@@ -42,10 +42,10 @@ struct CollectionTests {
         #expect(ContentKind(rawValue: "collection", slug: "work") == .main("work"))
         #expect(ContentKind(rawValue: "Not a type!") == nil)
 
-        #expect(ContentKind.post.path(for: "hi") == "/posts/hi/")
-        #expect(ContentKind.blogCategory.path(for: "travel") == "/blog/travel/")
-        #expect(ContentKind.product.path(for: "mug") == "/shop/mug/")
-        #expect(ContentKind.item("work").path(for: "bridge") == "/work/bridge/")
+        #expect(ContentKind.post.path(for: "hi") == "/blog/pages/hi/")
+        #expect(ContentKind.blogCategory.path(for: "travel") == "/blog/pages/travel/")
+        #expect(ContentKind.product.path(for: "mug") == "/shop/pages/mug/")
+        #expect(ContentKind.item("work").path(for: "bridge") == "/work/pages/bridge/")
         #expect(ContentKind.main("work").path(for: "work") == "/work/")
 
         let main = ContentItem(fileURL: URL(filePath: "/s/pages/work.md"), text: "---\ntype: collection\ntitle: Work\n---\n")
@@ -87,9 +87,9 @@ struct CollectionTests {
         let root = try siteWithCollections()
         let renderer = try SiteRenderer(site: Site.load(from: root))
         let paths = renderer.paths
-        #expect(paths.contains("/work/") && paths.contains("/work/bridge/") && paths.contains("/work/big/"))
-        #expect(paths.contains("/videos/") && paths.contains("/videos/launch/"))
-        #expect(!paths.contains("/work/secret/"))
+        #expect(paths.contains("/work/") && paths.contains("/work/pages/bridge/") && paths.contains("/work/pages/big/"))
+        #expect(paths.contains("/videos/") && paths.contains("/videos/pages/launch/"))
+        #expect(!paths.contains("/work/pages/secret/"))
 
         // The main page: its own title and text, then a gallery, newest first.
         let work = try #require(renderer.render(path: "/work/"))
@@ -99,24 +99,24 @@ struct CollectionTests {
         let chair = try #require(work.range(of: "Chair")), bridge = try #require(work.range(of: "Bridge"))
         #expect(chair.lowerBound < bridge.lowerBound)
         // Links to the categories, with the page you're on marked.
-        #expect(work.contains(#"<ul class="category-links"><li><a href="/work/" aria-current="page">All</a></li><li><a href="/work/big/">Big Things</a></li></ul>"#))
+        #expect(work.contains(#"<ul class="category-links"><li><a href="/work/" aria-current="page">All</a></li><li><a href="/work/pages/big/">Big Things</a></li></ul>"#))
         #expect(work.contains(".collection-grid {"))
 
-        let big = try #require(renderer.render(path: "/work/big/"))
-        #expect(big.contains("Large pieces.") && big.contains(#"href="/work/bridge/""#) && !big.contains(#"href="/work/chair/""#))
-        #expect(big.contains(#"<a href="/work/big/" aria-current="page">Big Things</a>"#))
+        let big = try #require(renderer.render(path: "/work/pages/big/"))
+        #expect(big.contains("Large pieces.") && big.contains(#"href="/work/pages/bridge/""#) && !big.contains(#"href="/work/pages/chair/""#))
+        #expect(big.contains(#"<a href="/work/pages/big/" aria-current="page">Big Things</a>"#))
 
         // An item: no date (the preset hides it), categories, tags as links, a pager.
-        let page = try #require(renderer.render(path: "/work/bridge/"))
-        #expect(page.contains(#"<a class="category" href="/work/big/">Big Things</a>"#))
+        let page = try #require(renderer.render(path: "/work/pages/bridge/"))
+        #expect(page.contains(#"<a class="category" href="/work/pages/big/">Big Things</a>"#))
         #expect(page.contains(#"<a class="tag" href="/tags/steel/">Steel</a>"#))
         #expect(!page.contains("<time"))
-        #expect(page.contains(#"<a class="prev" href="/work/chair/"><small>Newer</small>Chair</a>"#))
+        #expect(page.contains(#"<a class="prev" href="/work/pages/chair/"><small>Newer</small>Chair</a>"#))
         #expect(page.contains(#"<a class="all" href="/work/">All projects</a>"#))
         #expect(page.contains(#"<img class="cover" src="/media/bridge.jpg""#))
 
         // A video item: the player, and its thumbnail in lists.
-        let launch = try #require(renderer.render(path: "/videos/launch/"))
+        let launch = try #require(renderer.render(path: "/videos/pages/launch/"))
         #expect(launch.contains(#"<iframe src="https://www.youtube-nocookie.com/embed/abc_DEF-123""#))
         let videos = try #require(renderer.render(path: "/videos/"))
         #expect(videos.contains("https://i.ytimg.com/vi/abc_DEF-123/hqdefault.jpg"))
@@ -139,16 +139,16 @@ struct CollectionTests {
         let renderer = try SiteRenderer(site: Site.load(from: root))
 
         let work = try #require(renderer.render(path: "/work/"))
-        #expect(work.contains(#"<ul class="post-list"><li><a href="/work/bridge/">Bridge</a> <time datetime="2025-01-01">"#))
-        let page = try #require(renderer.render(path: "/work/bridge/"))
+        #expect(work.contains(#"<ul class="post-list"><li><a href="/work/pages/bridge/">Bridge</a> <time datetime="2025-01-01">"#))
+        let page = try #require(renderer.render(path: "/work/pages/bridge/"))
         #expect(!page.contains(#"class="tag""#) && !page.contains(#"class="pager""#) && page.contains(#"<time datetime="2025-01-01">"#))
         // Home lists the blog's posts and the work, newest first.
         let home = try #require(renderer.render(path: "/"))
-        #expect(home.contains(#"href="/work/chair/""#) && home.contains(#"href="/posts/hello-world/""#))
+        #expect(home.contains(#"href="/work/pages/chair/""#) && home.contains(#"href="/blog/pages/hello-world/""#))
 
         // A category with nothing in it shows the collection's empty text.
         try write("---\ntype: work-category\ntitle: Empty\n---\n", "pages/empty.md", in: root)
-        let empty = try SiteRenderer(site: Site.load(from: root)).render(path: "/work/empty/")
+        let empty = try SiteRenderer(site: Site.load(from: root)).render(path: "/work/pages/empty/")
         #expect(empty?.contains(#"<p class="empty">Nothing yet.</p>"#) == true)
     }
 
@@ -184,7 +184,7 @@ struct CollectionTests {
 
         let page = try #require(renderer.render(path: "/tags/design/"))
         #expect(page.contains("<h1>Design</h1>") && page.contains("Things about design.") && page.contains("2 pages"))
-        #expect(page.contains(#"href="/work/chair/""#) && page.contains(#"href="/work/bridge/""#))
+        #expect(page.contains(#"href="/work/pages/chair/""#) && page.contains(#"href="/work/pages/bridge/""#))
         let all = try #require(renderer.render(path: "/tags/"))
         #expect(all.contains(#"<a href="/tags/steel/">Steel<small>1</small></a>"#) && !all.contains("Unused"))
 
@@ -192,7 +192,7 @@ struct CollectionTests {
         site.config.tags.pages = false
         let off = try SiteRenderer(site: site)
         #expect(!off.paths.contains { $0.hasPrefix("/tags/") } && off.render(path: "/tags/design/") == nil)
-        #expect(off.render(path: "/posts/hello-world/")?.contains(#"<span class="tag">meta</span>"#) == true)
+        #expect(off.render(path: "/blog/pages/hello-world/")?.contains(#"<span class="tag">meta</span>"#) == true)
     }
 
     @Test func renamingAndMergingTags() {

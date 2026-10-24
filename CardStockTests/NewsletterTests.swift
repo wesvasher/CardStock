@@ -20,7 +20,7 @@ struct NewsletterTests {
             $0.embed = #"<iframe src="https://example.com/embed"></iframe>"#
             $0.alignment = .center
         }
-        let html = try SiteRenderer(site: site).render(path: "/join/") ?? ""
+        let html = try SiteRenderer(site: site).render(path: "/pages/join/") ?? ""
         #expect(html.contains(#"<section class="newsletter newsletter-card newsletter-center"><h2>Subscribe to the newsletter</h2><p>Get new posts by email. Unsubscribe any time.</p><div class="newsletter-embed"><iframe src="https://example.com/embed"></iframe></div></section>"#))
         #expect(html.contains(".newsletter-card {"))
         #expect(!html.contains("<!-- newsletter -->"))
@@ -29,7 +29,7 @@ struct NewsletterTests {
     @Test func linesInCodeStayText() throws {
         defer { try? FileManager.default.removeItem(at: dir) }
         let site = try site(page: "```\n<!-- newsletter -->\n```") { $0.embed = "<form></form>" }
-        let html = try SiteRenderer(site: site).render(path: "/join/") ?? ""
+        let html = try SiteRenderer(site: site).render(path: "/pages/join/") ?? ""
         #expect(!html.contains("newsletter-embed"))
         #expect(!SiteConfig.Newsletter.isUsed(in: site.items.first { $0.slug == "join" }!.body))
     }
@@ -37,9 +37,9 @@ struct NewsletterTests {
     @Test func withoutEmbedCodeOnlyThePreviewShowsANote() throws {
         defer { try? FileManager.default.removeItem(at: dir) }
         let site = try site(page: "<!-- Newsletter -->")
-        let published = try SiteRenderer(site: site).render(path: "/join/") ?? ""
+        let published = try SiteRenderer(site: site).render(path: "/pages/join/") ?? ""
         #expect(!published.contains("class=\"newsletter") && !published.contains("<!-- Newsletter -->"))
-        let preview = try SiteRenderer(site: site, includeDrafts: true).render(path: "/join/") ?? ""
+        let preview = try SiteRenderer(site: site, includeDrafts: true).render(path: "/pages/join/") ?? ""
         #expect(preview.contains("newsletter-missing"))
         let check = SiteInsights.healthChecks(site, files: [], outdatedThemeFiles: []).first { $0.id == "newsletter" }
         #expect(check?.problems.first?.action == .newsletter)

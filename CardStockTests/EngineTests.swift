@@ -97,12 +97,12 @@ struct SiteTests {
         #expect(report.warnings.isEmpty)
         let pub = root.appending(path: "public")
         let fm = FileManager.default
-        for file in ["index.html", "posts/hello-world/index.html", "about/index.html", "404.html",
-                     "blog/notes/index.html", "feed.xml",
+        for file in ["index.html", "blog/pages/hello-world/index.html", "pages/about/index.html", "404.html",
+                     "blog/pages/notes/index.html", "blog/index.html", "pages/search/index.html", "feed.xml",
                      "assets/style.css", "robots.txt"] {
             #expect(fm.fileExists(atPath: pub.appending(path: file).path), "missing \(file)")
         }
-        #expect(!fm.fileExists(atPath: pub.appending(path: "posts/secret").path))
+        #expect(!fm.fileExists(atPath: pub.appending(path: "blog/pages/secret").path))
 
         let home = try String(contentsOf: pub.appending(path: "index.html"), encoding: .utf8)
         #expect(home.contains("<title>Test Site</title>"))
@@ -110,8 +110,8 @@ struct SiteTests {
         #expect(home.contains("This is the Home page"))
         #expect(home.range(of: "This is the Home page")!.lowerBound < home.range(of: "post-list")!.lowerBound)
         #expect(!fm.fileExists(atPath: pub.appending(path: "index").path))
-        #expect(home.contains("href=\"/posts/hello-world/\""))
-        let post = try String(contentsOf: pub.appending(path: "posts/hello-world/index.html"), encoding: .utf8)
+        #expect(home.contains("href=\"/blog/pages/hello-world/\""))
+        let post = try String(contentsOf: pub.appending(path: "blog/pages/hello-world/index.html"), encoding: .utf8)
         #expect(post.contains("<strong>Markdown</strong>"))
         #expect(post.contains("<title>Hello, world · Test Site</title>"))
     }

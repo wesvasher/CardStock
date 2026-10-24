@@ -197,9 +197,10 @@ struct DetailView: View {
         switch model.configPage {
         case .layouts: SiteRenderer.layoutPreviewPath(model.previewLayoutID)
         case .newsletter: SiteRenderer.newsletterPreviewPath
-        case .search: "/\(ContentItem.searchSlug)/"
+        case .search: ContentItem.searchPath
         case .collections: model.previewCollectionPath
         case .tags: model.previewTagPath
+        case .folders: model.previewFolderPath
         default: SiteRenderer.templatePagePath
         }
     }
@@ -379,11 +380,6 @@ struct NewItemSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if kind != .links {
-                Text("Address: \(kind.path(for: Site.slugify(title).isEmpty ? "name" : Site.slugify(title)))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
             HStack {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }

@@ -2,7 +2,7 @@
 title: Markdown cheat sheet
 category: Writing
 summary: Headings, bold, links, lists and more.
-order: 4
+order: 5
 ---
 
 Markdown is plain text with a few symbols for formatting. What you type on the left becomes the page on the right.
@@ -43,7 +43,7 @@ Leave a blank line between paragraphs. A single line break inside a paragraph is
 Use the page's address, starting with `/`:
 
 ```
-Read more [about me](/about/) or see my [latest posts](/blog/notes/).
+Read more [about me](/pages/about/) or see my [latest posts](/blog/).
 ```
 
 ## Images

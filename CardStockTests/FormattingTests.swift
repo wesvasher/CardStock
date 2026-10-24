@@ -120,7 +120,7 @@ struct FormattingTests {
 struct PreviewAddressTests {
     @Test func showsTheBuiltFile() {
         #expect(PreviewNavigator.builtFile(for: "/") == "public/index.html")
-        #expect(PreviewNavigator.builtFile(for: "/posts/trip/") == "public/posts/trip/index.html")
+        #expect(PreviewNavigator.builtFile(for: "/blog/pages/trip/") == "public/blog/pages/trip/index.html")
         #expect(PreviewNavigator.builtFile(for: "/feed.xml") == "public/feed.xml")
         #expect(PreviewNavigator.builtFile(for: "/media/a.jpg") == "public/media/a.jpg")
     }

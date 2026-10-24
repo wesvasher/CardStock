@@ -39,7 +39,7 @@ my-site/
   "nav": [
     { "title": "Blog", "url": "/" },
     { "title": "Shop", "url": "/shop/" },
-    { "title": "About", "url": "/about/" }
+    { "title": "About", "url": "/pages/about/" }
   ],
   "header": {
     "mode": "shrinking",
@@ -101,13 +101,15 @@ my-site/
 ]
 ```
 
-- `id` is the address and the type name: the main page is `/<id>/`, items `/<id>/<slug>/` with `type: <id>` (the blog's are `/posts/<slug>/` with `type: post`; the shop's `type: product`), and categories `/<id>/<slug>/` with `type: <id>-category`. It can't be a reserved word (`page`, `posts`, `tags`, `search`, …) and doesn't change after the collection is made.
+- `id` is the address and the type name: the main page is `/<id>/`, and items (`type: <id>`; the blog's are `type: post`, the shop's `type: product`) and categories (`type: <id>-category`) are `/<id>/pages/<slug>/`. It can't be a reserved word (`page`, `pages`, `posts`, `tags`, `search`, …) and doesn't change after the collection is made.
 - `preset` (`blog`, `shop`, `portfolio`, `videos`, `custom`) supplies any setting left out.
 - Main page and categories: `listStyle` is `list` (rows), `cards` or `gallery`; `columns` (1–6) for cards and galleries; `sort` is `newest`, `oldest` or `title`; `listImages` (cover, or a YouTube video's thumbnail), `listDates`, `listSummaries`, `listCategories` (links to the main page and each category above the list); `emptyText` when there's nothing to list (empty: "No <items> yet.").
 - Item pages: `dated` (items have a `date`), `showDate`, `showCover`, `showTags`, `showCategories`, `selling` (`price` and a Buy button from `buy`), `video` (a player from `video`), `prevNext` (links to the neighbouring items and the main page); `itemLayout` is the layout new items start with.
 - `categories` turns category pages on; `onHome` lists the items on Home (newest first, with other collections that have it); `inFeed` puts them in `/feed.xml`.
 
 Files in `media/` are tagged in `media.json` at the site's root (committed, not published): `{ "files": { "media/files/beach.jpg": { "tags": ["travel"] } } }`. Files without tags and files that no longer exist are left out when it's saved; with no file tags it's removed.
+
+`folders` (optional) are your own short addresses, edited in Configuration → Folders: `"folders": [{ "name": "subscribe", "page": "subscribe" }]`. Each publishes `/<name>/index.html` with the page whose file name is `page` (`pages/subscribe.md`; a collection's id means its main page), rendered exactly as at its own address, which it keeps (the canonical link points there). A folder whose page is missing, a draft or a link menu isn't published. Names use lowercase letters, numbers and hyphens, and can't be a collection's id or a folder CardStock uses (`pages`, `tags`, `media`, `assets`, `links`, `search`, …). CardStock's own folders are one per collection plus `/pages/`, `/tags/`, `/media/` and `/assets/`.
 
 `tags` (optional): `pages` (default true) publishes `/tags/` and a page per tag; `list` holds tags with a `description` (shown on the tag's page) or made before any page used them: `"tags": { "pages": true, "list": [{ "name": "Design", "description": "Pages about design." }] }`.
 
@@ -123,7 +125,7 @@ Files in `media/` are tagged in `media.json` at the site's root (committed, not 
 
 ## Content files
 
-Each file is Markdown with a short header (front matter) between `---` lines. The file name, without `.md`, is the slug used in the URL, so `posts/hello-world.md` is published at `/posts/hello-world/`. Slugs use lowercase letters, numbers and hyphens.
+Each file is Markdown with a short header (front matter) between `---` lines. The file name, without `.md`, is the slug used in the URL, so a blog post in `pages/hello-world.md` is published at `/blog/pages/hello-world/`. Slugs use lowercase letters, numbers and hyphens.
 
 ```markdown
 ---
@@ -146,12 +148,14 @@ Every page lives in `pages/`. `type` says what kind of page it is; without it (o
 
 | `type`          | Is                                  | Published at       | Template             |
 |-----------------|-------------------------------------|--------------------|----------------------|
-| (none) / `page` | Static page                         | `/<slug>/`         | `page.html`          |
+| (none) / `page` | Static page                         | `/pages/<slug>/`   | `page.html`          |
 | `collection`    | A collection's main page; the file is `pages/<id>.md` | `/<id>/` | `collection.html` |
-| `post`          | Blog post (an item in `blog`)       | `/posts/<slug>/`   | `item.html`          |
-| `product`       | Product (an item in `shop`)         | `/shop/<slug>/`    | `item.html`          |
-| `<id>`          | An item in collection `<id>`        | `/<id>/<slug>/`    | `item.html`          |
-| `<id>-category` | A category in collection `<id>` (`blog-category`, `shop-category`, …) | `/<id>/<slug>/` | `collection.html` |
+| `post`          | Blog post (an item in `blog`)       | `/blog/pages/<slug>/` | `item.html`       |
+| `product`       | Product (an item in `shop`)         | `/shop/pages/<slug>/` | `item.html`       |
+| `<id>`          | An item in collection `<id>`        | `/<id>/pages/<slug>/` | `item.html`       |
+| `<id>-category` | A category in collection `<id>` (`blog-category`, `shop-category`, …) | `/<id>/pages/<slug>/` | `collection.html` |
+
+Only collections have addresses of their own; every other page is in `/pages/`, and Home is `/`. Addresses come from a page's type and file name; there's no setting for them.
 | `links`         | Link menu for the footer            | not published      | –                    |
 
 A main page without a file is still published, titled with the collection's name, once the collection has a published item. Pages whose type names a collection that isn't in `site.json` are published with that collection's preset settings (and flagged in the health checks).
@@ -199,12 +203,13 @@ Copy Markdown gives `![Description](/media/…)` for images (wrapped in a link t
 | `pages/index.md` + posts | `/`                    | `home.html`                  |
 | `pages/<slug>.md` (by `type`) | see the type table above | see above            |
 | (collection main page)  | `/<id>/`                | `collection.html`            |
+| (`folders` in site.json) | `/<name>/`             | the page's own template      |
 | (tags)                  | `/tags/`, `/tags/<tag>/` | `tags.html` (when `tags.pages` is on and a published page or a file has the tag) |
 | `pages/404.md`          | `/404.html`             | `page.html`                  |
 | `pages/template.md`     | not published (`/_template/` in the preview) | `template.html` |
 | (items of `inFeed` collections) | `/feed.xml`     | built in (RSS 2.0)           |
 
-Every page is rendered with its own template, and the result is placed inside `base.html` as `body`. Slugs `posts`, `blog`, `shop`, `links`, `media`, `assets`, `tags` and `template`, and every collection's id, are reserved for static pages. A theme without the newer templates (`collection`, `item`, `tags`) uses CardStock's built-in versions. Older themes' `post.html`, `product.html`, `blog-category.html`, `shop-category.html` and `shop.html` are no longer used.
+Every page is rendered with its own template, and the result is placed inside `base.html` as `body`. New pages can't be named `pages`, `links`, `media`, `assets`, `tags`, `index`, `template` or `search`, or take a collection's id (its main page's file name). A theme without the newer templates (`collection`, `item`, `tags`) uses CardStock's built-in versions. Older themes' `post.html`, `product.html`, `blog-category.html`, `shop-category.html` and `shop.html` are no longer used.
 
 Pages with collection lists, category links, a pager, a video or the tag list get a small `<style>` block in `<head>` for them (`.collection-grid`, `.gallery-item`, `.category-links`, `.pager`, `.video-embed`, `.tag-cloud`), using the theme's variables.
 
@@ -212,11 +217,11 @@ Pages with collection lists, category links, a pager, a video or the tag list ge
 
 ### Search
 
-`pages/search.md` is the Search page, published at `/search/` and drawn with `theme/search.html` (CardStock's built-in version when missing). It's a fixed page like Home: its title and text show above a search field. Its template gets `search.index` (`/search.json`), `search.placeholder` and `search.buttonLabel`. The page loads the index with a small script and filters it as visitors type; `/search/?q=words` opens with a search done.
+`pages/search.md` is the Search page, published at `/pages/search/` and drawn with `theme/search.html` (CardStock's built-in version when missing). It's a fixed page like Home: its title and text show above a search field. Its template gets `search.index` (`/search.json`), `search.placeholder` and `search.buttonLabel`. The page loads the index with a small script and filters it as visitors type; `/pages/search/?q=words` opens with a search done.
 
 `/search.json` is a list of the findable pages, each with `title`, `url`, `type` (`Page`, `Category`, or the collection's item name such as `Post` or `Product`), `date` (items of dated collections), `summary`, `tags` (tags plus category names) and `text` (the page's text without formatting, up to about 5,000 characters). Drafts are left out of published sites, as are Home, the 404 page, the Template and Search pages and link menus.
 
-A line holding only `<!-- search -->` (outside code blocks) shows a search box: a `<form class="search-box" action="/search/">` with a `q` field and a button, preceded once per page by a small `<style>` block.
+A line holding only `<!-- search -->` (outside code blocks) shows a search box: a `<form class="search-box" action="/pages/search/">` with a `q` field and a button, preceded once per page by a small `<style>` block.
 
 Settings in `site.json`:
 
@@ -229,7 +234,7 @@ Settings in `site.json`:
 }
 ```
 
-`enabled: false` leaves out `/search/`, `/search.json` and every search box. `kinds` are page types (`page`, `post`, `product`, `blog-category`, a collection's `<id>` or `<id>-category`); a collection's main page is found when its items are. New collections are added to `kinds`.
+`enabled: false` leaves out `/pages/search/`, `/search.json` and every search box. `kinds` are page types (`page`, `post`, `product`, `blog-category`, a collection's `<id>` or `<id>-category`); a collection's main page is found when its items are. New collections are added to `kinds`.
 
 ### Newsletter box
 
@@ -273,7 +278,11 @@ Layouts get the same values as the type's template, plus:
 
 CardStock previews a sample page in each layout at `/_layouts/<name>/` (`/_layouts/standard/` for Standard). Those addresses are never published.
 
-Sites made before page types kept posts in `posts/` and projects in `projects/`. CardStock moves them into `pages/` when the site is opened: posts get `type: post` (same address); projects become static pages at `/<slug>/`, with `static/_redirects` lines sending `/portfolio/…` to the new addresses (Cloudflare Pages reads this file) and a `/portfolio/` menu link titled Portfolio removed.
+### Page addresses (0.6)
+
+Sites made before CardStock 0.6 had static pages at `/<slug>/`, blog posts at `/posts/<slug>/` and other collection pages at `/<id>/<slug>/`, and have no `addressVersion` in site.json (version 1). When such a site opens, CardStock moves it to version 2 once (`SiteMigration.moveAddresses`): links to the old addresses in pages (Markdown `](/…)` and `href="/…"`), the top bar and footer are changed to the new ones (keeping `?query` and `#part`), `static/_redirects` gets a `<old> <new> 301` line for every page that moved, and `addressVersion` is set to 2.
+
+Sites made before page types kept posts in `posts/` and projects in `projects/`. CardStock moves them into `pages/` when the site is opened: posts get `type: post`; projects become static pages, with `static/_redirects` lines sending `/portfolio/…` to the new addresses (Cloudflare Pages reads this file) and a `/portfolio/` menu link titled Portfolio removed.
 
 `pages/index.md` is the Home page. It's published at `/` using `home.html`, which gets the page's fields and text as `page` (`page.content` is its rendered Markdown) along with the list of `posts`. It's never a draft. Without it, `home.html` renders with just the post list.
 

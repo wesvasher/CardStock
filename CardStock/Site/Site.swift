@@ -54,8 +54,16 @@ struct SiteConfig: Codable, Equatable, Sendable {
     var footer = Footer()
     var newsletter = Newsletter()
     var search = Search()
+    /// How pages are addressed. 1: sites from before 0.6 (static pages at
+    /// /<slug>/, posts at /posts/<slug>/); `SiteMigration.moveAddresses`
+    /// moves them to 2: /pages/<slug>/ and /<collection>/pages/<slug>/.
+    var addressVersion = SiteConfig.currentAddressVersion
+    static let currentAddressVersion = 2
     /// Tag pages and tag descriptions (Configuration → Tags).
     var tags = TagSettings()
+    /// Your own folders: short addresses like /subscribe/ that show a page
+    /// (Configuration → Folders).
+    var folders: [Folder] = []
     /// nil when site.json has no `collections` yet; `Site.load` fills in
     /// the defaults so they're saved with the next change.
     var storedCollections: [ContentCollection]?
@@ -67,11 +75,11 @@ struct SiteConfig: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case title, description, author, url, language, nav, header, footer, newsletter, search, tags
+        case title, description, author, url, language, nav, header, footer, newsletter, search, tags, addressVersion, folders
         case storedCollections = "collections"
     }
 
-    /// Site search: the Search page (pages/search.md at /search/), the
+    /// Site search: the Search page (pages/search.md at /pages/search/), the
     /// index it searches (/search.json) and the search box pages can show
     /// with a `<!-- search -->` line. Edited in Configuration → Search.
     struct Search: Codable, Equatable, Sendable {
@@ -374,6 +382,8 @@ struct SiteConfig: Codable, Equatable, Sendable {
         newsletter = try c.decodeIfPresent(Newsletter.self, forKey: .newsletter) ?? Newsletter()
         search = try c.decodeIfPresent(Search.self, forKey: .search) ?? Search()
         tags = try c.decodeIfPresent(TagSettings.self, forKey: .tags) ?? TagSettings()
+        addressVersion = try c.decodeIfPresent(Int.self, forKey: .addressVersion) ?? 1
+        folders = try c.decodeIfPresent([Folder].self, forKey: .folders) ?? []
         storedCollections = try c.decodeIfPresent([ContentCollection].self, forKey: .storedCollections)
     }
 
@@ -458,10 +468,12 @@ struct ContentItem: Identifiable, Equatable, Sendable {
     /// preview with theme/template.html. Never published.
     var isTemplatePage: Bool { slug == Self.templateSlug }
     /// Home, 404 and Template: every site has them and their type is fixed.
-    /// The Search page (pages/search.md at /search/): a search field and its
+    /// The Search page (pages/search.md at /pages/search/): a search field and its
     /// results, with the page's own text above. Can't be deleted.
     static let searchSlug = "search"
     var isSearchPage: Bool { slug == Self.searchSlug }
+    /// The Search page's address.
+    static var searchPath: String { ContentKind.page.path(for: searchSlug) }
 
     var isFixedPage: Bool { isHome || isNotFoundPage || isTemplatePage || isSearchPage }
     /// A page of links for a footer drop-down menu (`type: links`). It
@@ -498,14 +510,14 @@ struct Site: Sendable {
 
     static let configFile = "site.json"
     /// Slugs a static page can't use, because other addresses start with them.
-    static let reservedSlugs: Set<String> = ["posts", "blog", "shop", "links", "media", "assets", "feed.xml", "tags"]
+    static let reservedSlugs: Set<String> = ["pages", "links", "media", "assets", "feed.xml", "tags"]
     /// Names new pages can't take: reserved ones plus Home's and Template's.
     static let unavailablePageSlugs = reservedSlugs.union([ContentItem.homeSlug, ContentItem.templateSlug, ContentItem.searchSlug])
 
     /// Names new pages can't take in this site: the fixed ones, and each
     /// collection's address folders.
     var unavailableSlugs: Set<String> {
-        Site.unavailablePageSlugs.union(config.collections.flatMap { [$0.id, ContentCollection.itemFolder($0.id)] })
+        Site.unavailablePageSlugs.union(config.collections.map(\.id))
     }
 
     static func isSite(_ url: URL) -> Bool {

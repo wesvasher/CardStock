@@ -10,7 +10,7 @@ struct FooterTests {
         if !FileManager.default.fileExists(atPath: root.path) { try StarterSite.create(at: root, title: "Site") }
         var site = try Site.load(from: root)
         change(&site.config)
-        return try SiteRenderer(site: site).render(path: "/about/") ?? ""
+        return try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
     }
 
     private func footer(_ html: String) -> String? {
@@ -79,12 +79,12 @@ struct FooterTests {
         [My Channel](https://www.youtube.com/@ann)
         https://www.linkedin.com/in/ann.
         - [Email me](mailto:ann@example.com "Say hi")
-        Some words, then https://ann.substack.com and [About](/about/)
+        Some words, then https://ann.substack.com and [About](/pages/about/)
         """
         let links = LinkMenu.links(in: text)
         #expect(links.map(\.title) == ["My Channel", "LinkedIn", "Email me", "Substack", "About"])
         #expect(links.map(\.url) == ["https://www.youtube.com/@ann", "https://www.linkedin.com/in/ann",
-                                    "mailto:ann@example.com", "https://ann.substack.com", "/about/"])
+                                    "mailto:ann@example.com", "https://ann.substack.com", "/pages/about/"])
         #expect(links[0].isExternal && !links[4].isExternal)
         #expect(LinkMenu.name(for: "https://example.org/x") == "example.org")
     }
@@ -105,7 +105,7 @@ struct FooterTests {
         let renderer = try SiteRenderer(site: site)
         // Link menus aren't pages of their own.
         #expect(!renderer.paths.contains("/social/"))
-        let f = try #require(footer(renderer.render(path: "/about/") ?? ""))
+        let f = try #require(footer(renderer.render(path: "/pages/about/") ?? ""))
         #expect(f.contains(#"<details class="footer-menu"><summary>Follow</summary><ul><li><a href="https://youtube.com/@ann" target="_blank" rel="noopener">YouTube</a></li><li><a href="https://github.com/ann" target="_blank" rel="noopener">GitHub</a></li></ul></details>"#))
         // Menus with no links, or no page, are left out.
         #expect(!f.contains("Nothing") && !f.contains("Gone"))

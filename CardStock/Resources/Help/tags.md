@@ -2,7 +2,7 @@
 title: Tags
 category: Writing
 summary: Tag any page, photo or file, and each tag gets its own page.
-order: 3
+order: 4
 ---
 
 **Tags** are topics you put on anything in your site, like *design* or *travel*: any page (a blog post, a product, a project, Home, a category) and any photo or file. Unlike categories, which belong to one collection, one tag can gather all of them.

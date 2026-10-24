@@ -122,6 +122,7 @@ enum SiteInsights {
         case menu
         case footer
         case newsletter
+        case folders
         case files
         case theming
     }
@@ -211,6 +212,15 @@ enum SiteInsights {
                                         action: .openItem($0.id))
                             }))
 
+        // Folders whose page is gone.
+        let pageSlugs = Set(site.items.map(\.slug)).union(site.config.collections.map(\.id))
+        let lostFolders = site.config.folders.filter { !pageSlugs.contains($0.page) }
+        checks.append(Check(id: "folders", title: "Folders", passText: "Every folder shows a page.",
+                            severity: .warning,
+                            problems: lostFolders.map {
+                                Problem(text: "The folder \($0.path) shows a page that isn't there anymore", action: .folders)
+                            }))
+
         // Pages whose type names a collection site.json doesn't have.
         let ids = Set(site.config.collections.map(\.id))
         let orphans = site.items.filter { item in item.kind.collectionID.map { !ids.contains($0) } ?? false }
@@ -262,6 +272,13 @@ enum SiteInsights {
         var page = path.hasSuffix("/index.html") ? String(path.dropLast("index.html".count)) : path
         if !page.hasSuffix("/") && !page.contains(".") { page += "/" }
         if let item = site.items.first(where: { $0.path == page }) {
+            return item.isDraft ? .draft : .ok
+        }
+        // One of your folders: as good as its page.
+        if let folder = site.config.folder(at: page) {
+            guard let item = site.items.first(where: { $0.slug == folder.page }), !item.isLinkMenu else {
+                return site.config.collection(folder.page) != nil ? linkStatus("/\(folder.page)/", in: site) : .missing
+            }
             return item.isDraft ? .draft : .ok
         }
         // A collection's main page without a file is published once it has items.

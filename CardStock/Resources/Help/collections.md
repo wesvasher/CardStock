@@ -27,7 +27,7 @@ Every site starts with a **Blog**. Set up collections in [Collections](cardstock
 | Custom | Anything else: recipes, events, episodes, case studies | Cards |
 
 3. Name it, and name one item and more than one (like *Recipe* and *Recipes*). These show in CardStock and on your site, like "All recipes".
-4. Check the **Address**. The main page lives there, like `/recipes/`, and items under it, like `/recipes/lemon-cake/`. It can't change later.
+4. Check the **Address**. The main page lives there, like `/recipes/`, and every page in the collection under it, like `/recipes/pages/lemon-cake/`. It can't change later.
 5. Click **Create**. CardStock makes the main page; edit its title and text with **Edit Main Page**.
 
 To add an item, click **New Page…** in [Pages](cardstock:pages) and choose the item type, like **Recipe**, or click **New Recipe…** in the collection's settings.
@@ -45,8 +45,21 @@ Choose a collection from the **Collection** menu (sorted by name; the first one 
 
 ## Delete a collection
 
-Click the red **Delete Collection…** button at the very bottom of its settings, then confirm. Its pages aren't deleted: they become static pages. The main page keeps its address; items and categories move to addresses of their own (like `/lemon-cake/`), so update any links to them.
+Click the red **Delete Collection…** button at the very bottom of its settings, then confirm. Its pages aren't deleted: they become static pages. The main page keeps its address; items and categories move to `/pages/` with the other static pages (like `/pages/lemon-cake/`), so update any links to them.
 
 ## Link to a collection
 
 Add its main page to the menu in [Top Navigation Bar](cardstock:top-bar): the page menu next to a link lists every collection. A menu link to a collection stays highlighted on its items' pages too.
+
+## Page addresses
+
+CardStock gives every page its address; there's nothing to set.
+
+| Page | Address |
+|---|---|
+| Home | `/` |
+| A collection's main page | `/blog/`, `/shop/`, `/gallery/`, … |
+| A page in a collection (an item or a category) | `/blog/pages/my-trip/`, `/shop/pages/blue-mug/` |
+| Any other page | `/pages/about/` |
+
+The last part is made from the page's title when you create it. For a shorter address, like `/subscribe/`, make a [folder](help:folders). Sites made before CardStock 0.6 move to these addresses the first time they open: links in your pages, top bar and footer are updated, and the old addresses redirect to the new ones (in `static/_redirects`).

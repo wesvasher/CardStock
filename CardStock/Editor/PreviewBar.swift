@@ -7,7 +7,7 @@ import WebKit
 final class PreviewNavigator {
     private(set) var canGoBack = false
     private(set) var canGoForward = false
-    /// The address of the page shown, such as `/posts/hello-world/`.
+    /// The address of the page shown, such as `/blog/pages/hello-world/`.
     private(set) var address = "/"
 
     @ObservationIgnored private weak var webView: WKWebView?
@@ -35,7 +35,7 @@ final class PreviewNavigator {
     }
 
     /// The built file the page comes from, such as `public/index.html`
-    /// for the Home page or `public/posts/trip/index.html` for a post.
+    /// for the Home page or `public/blog/pages/trip/index.html` for a post.
     var builtFile: String { Self.builtFile(for: address) }
 
     nonisolated static func builtFile(for address: String) -> String {

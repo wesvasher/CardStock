@@ -390,6 +390,7 @@ struct HealthCard: View {
         case .siteDetails: model.showConfiguration(.site)
         case .menu: model.showConfiguration(.topBar)
         case .newsletter: model.showConfiguration(.newsletter)
+        case .folders: model.showConfiguration(.folders)
         case .footer: model.showConfiguration(.footer)
         case .files: model.selection = .files
         case .theming: model.showConfiguration(.templates)

@@ -51,7 +51,7 @@ The bar has three groups of links: **Left Links**, **Center Links** and **Right 
 
 1. In a group, click **Add Link**.
 2. Type the text people see, such as `About`.
-3. Type the address, such as `/about/` for a page or a full `https://` address for another site, or click the page button next to it and choose one of your pages. If there's no page there yet, click **Create Page**.
+3. Type the address, such as `/pages/about/` for a page or a full `https://` address for another site, or click the page button next to it and choose one of your pages. If there's no page there yet, click **Create Page**.
 4. Use the arrows to change the order, or **−** to remove a link.
 
 Below each link, **Icon** adds an icon from CardStock's set (search, cart, email, social sites and more) before or after its text. Leave the link's text empty to show just the icon. Check **Button** to show the link as a button.

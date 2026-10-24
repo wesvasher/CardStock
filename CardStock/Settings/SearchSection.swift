@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Configuration → Search: turns site search on or off, picks what it can
-/// find, and words the field. The Search page (pages/search.md, /search/)
+/// find, and words the field. The Search page (pages/search.md, /pages/search/)
 /// shows the field and results; pages can show a search box that opens it.
 /// Saved in site.json (`search`).
 struct SearchSection: View {
@@ -9,7 +9,7 @@ struct SearchSection: View {
     @Binding var config: SiteConfig
 
     private var search: Binding<SiteConfig.Search> { $config.search }
-    private var searchPath: String { "/\(ContentItem.searchSlug)/" }
+    private var searchPath: String { ContentItem.searchPath }
 
     /// Pages with a search box line.
     private var boxPages: [ContentItem] {

@@ -27,7 +27,7 @@ struct SiteRenderer: Sendable {
     /// A sample page with the newsletter box, for Configuration → Mailing List's
     /// preview. Never published.
     static let newsletterPreviewPath = "/_newsletter/"
-    /// The Search page's template (pages/search.md, at /search/).
+    /// The Search page's template (pages/search.md, at /pages/search/).
     static let searchTemplate = "search"
     /// What the Search page searches: every findable page as JSON.
     static let searchIndexPath = "/search.json"
@@ -78,6 +78,10 @@ struct SiteRenderer: Sendable {
         for c in allCollections where site.mainPage(of: c) == nil && !items(of: c).isEmpty {
             paths.append(c.mainPath)
         }
+        // Your folders, when the page they show is published.
+        for folder in site.config.folders where folderTarget(folder) != nil {
+            paths.append(folder.path)
+        }
         if site.config.tags.pages {
             let tags = publishedTags
             if !tags.isEmpty { paths += [TagSettings.path] + tags.map(\.path) }
@@ -101,7 +105,7 @@ struct SiteRenderer: Sendable {
             return render(newsletterSample())
         case Self.searchIndexPath:
             return searchIndexJSON()
-        case "/\(ContentItem.searchSlug)/" where !site.items.contains(where: \.isSearchPage):
+        case ContentItem.searchPath where !site.items.contains(where: \.isSearchPage):
             // Sites without pages/search.md still get the page.
             return render(ContentItem(fileURL: site.root.appending(path: "pages/search.md"),
                                       text: "---\ntitle: Search\n---\n"))
@@ -115,6 +119,11 @@ struct SiteRenderer: Sendable {
                 return renderTag(slug)
             }
             if let item = site.items.first(where: { (includeDrafts || !$0.isDraft) && $0.path == normalized }) {
+                return render(item)
+            }
+            // A folder shows its page as it is at its own address (so the
+            // canonical link and menu highlight point there).
+            if let folder = site.config.folder(at: normalized), let item = folderTarget(folder) {
                 return render(item)
             }
             if let c = allCollections.first(where: { $0.mainPath == normalized }),
@@ -168,6 +177,20 @@ struct SiteRenderer: Sendable {
             return renderLayout(item, layout, context: context)
         }
         return wrap(templates[template]!.render(.dict(context)), context: context)
+    }
+
+    /// The page a folder shows, when it's there and published (or this is
+    /// the preview). A collection's main page without a file counts too.
+    func folderTarget(_ folder: Folder) -> ContentItem? {
+        if let item = site.items.first(where: { $0.slug == folder.page }) {
+            guard !item.isLinkMenu, !item.isTemplatePage, includeDrafts || !item.isDraft,
+                  !(item.isSearchPage && !site.config.search.enabled) else { return nil }
+            return item
+        }
+        if let c = allCollections.first(where: { $0.id == folder.page }), includeDrafts || !items(of: c).isEmpty {
+            return mainPage(of: c)
+        }
+        return nil
     }
 
     // MARK: - Collections
@@ -625,10 +648,8 @@ struct SiteRenderer: Sendable {
         func links(_ list: [SiteConfig.NavLink]) -> TemplateValue {
             .list(list.map { link in
                 let current = path == link.url
+                    // A collection's main page, on its own pages too.
                     || (link.url != "/" && link.url.hasPrefix("/") && path.hasPrefix(link.url))
-                    || (link.url == "/" && path.hasPrefix("/posts/"))
-                    // A collection's main page, on its items' pages.
-                    || c.collections.contains { link.url == $0.mainPath && path.hasPrefix("/\(ContentCollection.itemFolder($0.id))/") }
                 let icon = NavIcon.named(link.icon)
                 let title = link.title.trimmingCharacters(in: .whitespaces)
                 return .dict([
@@ -975,7 +996,7 @@ extension SiteRenderer {
                 : ""
         }
         let placeholder = escapeHTML(search.shownPlaceholder)
-        return #"<form class="search-box" action="/\#(ContentItem.searchSlug)/" method="get" role="search">"#
+        return #"<form class="search-box" action="\#(ContentItem.searchPath)" method="get" role="search">"#
             + #"<input type="search" name="q" placeholder="\#(placeholder)" aria-label="\#(placeholder)">"#
             + #"<button class="button" type="submit">\#(escapeHTML(search.shownButtonLabel))</button></form>"#
     }

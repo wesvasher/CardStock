@@ -9,8 +9,8 @@ enum SiteMigration {
         var isEmpty: Bool { posts == 0 && projects == 0 }
     }
 
-    /// Posts keep their /posts/<name>/ address (`type: post`). Projects
-    /// become static pages at /<name>/; their old /portfolio/ addresses
+    /// Posts become blog posts (`type: post`). Projects become static
+    /// pages; their old /portfolio/ addresses
     /// redirect there (static/_redirects, read by Cloudflare Pages), and a
     /// menu link titled Portfolio is removed. Images aren't moved.
     @discardableResult
@@ -44,10 +44,10 @@ enum SiteMigration {
                 try fm.removeItem(at: file)
                 if type == nil {
                     result.projects += 1
-                    redirects.append("/portfolio/\(slug)/ /\(newSlug)/ 301")
+                    redirects.append("/portfolio/\(slug)/ \(ContentKind.page.path(for: newSlug)) 301")
                 } else {
                     result.posts += 1
-                    if newSlug != slug { redirects.append("/posts/\(slug)/ /posts/\(newSlug)/ 301") }
+                    if newSlug != slug { redirects.append("/posts/\(slug)/ \(ContentKind.post.path(for: newSlug)) 301") }
                 }
             }
             // Leave the folder only if something else is still in it.
@@ -61,6 +61,83 @@ enum SiteMigration {
             try removePortfolioMenuLink(in: root)
         }
         if !redirects.isEmpty { try addRedirects(redirects, in: root) }
+        return result
+    }
+
+    // MARK: - Page addresses (0.6)
+
+    /// Moves a site from the old addresses (static pages at `/<name>/`,
+    /// posts at `/posts/<name>/`, other collection pages at `/<id>/<name>/`)
+    /// to the current ones (`/pages/<name>/`, `/<id>/pages/<name>/`). Links
+    /// to the old addresses in pages and in the top bar and footer are
+    /// updated, and `static/_redirects` sends the old addresses to the new
+    /// ones. Runs once: site.json's `addressVersion` records it. Returns how
+    /// many pages moved.
+    @discardableResult
+    static func moveAddresses(in root: URL) throws -> Int {
+        var site = try Site.load(from: root)
+        guard site.config.addressVersion < SiteConfig.currentAddressVersion else { return 0 }
+        let moves = addressMoves(for: site)
+
+        for item in site.items {
+            let body = rewriteLinks(in: item.body, moves)
+            guard body != item.body else { continue }
+            var updated = item
+            updated.body = body
+            try updated.fileText.write(to: item.fileURL, atomically: true, encoding: .utf8)
+        }
+        func fix(_ links: inout [SiteConfig.NavLink]) {
+            for i in links.indices { links[i].url = newAddress(for: links[i].url, moves) ?? links[i].url }
+        }
+        fix(&site.config.nav)
+        fix(&site.config.header.leftLinks)
+        fix(&site.config.header.centerLinks)
+        fix(&site.config.footer.links)
+        site.config.addressVersion = SiteConfig.currentAddressVersion
+        try site.saveConfig()
+        try addRedirects(moves.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value) 301" }, in: root)
+        return moves.count
+    }
+
+    /// Old address → new address, for every published page that moved.
+    static func addressMoves(for site: Site) -> [String: String] {
+        var moves: [String: String] = [:]
+        for item in site.items where !item.isLinkMenu {
+            let old = item.kind.legacyPath(for: item.slug)
+            if old != item.path { moves[old] = item.path }
+        }
+        return moves
+    }
+
+    /// The new address for a link to a moved page, keeping any `?query` or
+    /// `#part`; nil when it didn't move.
+    static func newAddress(for link: String, _ moves: [String: String]) -> String? {
+        guard link.hasPrefix("/"), !link.hasPrefix("//") else { return nil }
+        let cut = link.firstIndex { $0 == "?" || $0 == "#" } ?? link.endIndex
+        var path = String(link[..<cut])
+        if path.hasSuffix("/index.html") { path = String(path.dropLast("index.html".count)) }
+        if !path.hasSuffix("/") && !path.contains(".") { path += "/" }
+        guard let new = moves[path] else { return nil }
+        return new + link[cut...]
+    }
+
+    /// Updates Markdown links (`[text](/about/)`) and HTML ones
+    /// (`href="/about/"`) to moved pages.
+    static func rewriteLinks(in text: String, _ moves: [String: String]) -> String {
+        guard !moves.isEmpty, text.contains("/") else { return text }
+        var result = text
+        for pattern in [#"\]\((/[^)\s]*)"#, #"href="(/[^"]*)""#] {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let ns = result as NSString
+            var replaced = result
+            for match in regex.matches(in: result, range: NSRange(location: 0, length: ns.length)).reversed() {
+                let range = match.range(at: 1)
+                guard let new = newAddress(for: ns.substring(with: range), moves),
+                      let swiftRange = Range(range, in: replaced) else { continue }
+                replaced.replaceSubrange(swiftRange, with: new)
+            }
+            result = replaced
+        }
         return result
     }
 

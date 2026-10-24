@@ -348,7 +348,7 @@ struct AddCollectionSheet: View {
                 LabeledContent("Pages") {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("/\(id)/ lists every \(itemName.lowercased())")
-                        Text("/\(ContentCollection.itemFolder(id))/name/ for each one")
+                        Text("/\(id)/pages/name/ for each one")
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)

@@ -1,6 +1,6 @@
 <!-- The Search page (pages/search.md). The page's text shows above the
      field. Results come from /search.json, which CardStock writes when it
-     builds the site; they show as you type, and /search/?q=words opens with
+     builds the site; they show as you type, and /pages/search/?q=words opens with
      a search already done (the search box in other pages sends people here). -->
 <style>
   .search-page .search-form { display: flex; gap: 0.5rem; margin: 1.5rem 0 0.75rem; }
@@ -21,7 +21,7 @@
   {{#if page.content}}<div class="content intro">
 {{{ page.content }}}
   </div>{{/if}}
-  <form class="search-form" id="search-form" action="/search/" method="get" role="search" data-index="{{ search.index }}">
+  <form class="search-form" id="search-form" action="/pages/search/" method="get" role="search" data-index="{{ search.index }}">
     <input type="search" name="q" id="search-input" placeholder="{{ search.placeholder }}" aria-label="{{ search.placeholder }}" autocomplete="off">
     <button class="button" type="submit">{{ search.buttonLabel }}</button>
   </form>

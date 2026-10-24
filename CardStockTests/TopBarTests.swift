@@ -10,7 +10,7 @@ struct TopBarTests {
         if !FileManager.default.fileExists(atPath: root.path) { try StarterSite.create(at: root, title: "Site") }
         var site = try Site.load(from: root)
         change(&site.config.header)
-        return try SiteRenderer(site: site).render(path: "/about/") ?? ""
+        return try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
     }
 
     @Test func scrollsAwayByDefault() throws {
@@ -69,19 +69,19 @@ struct TopBarTests {
         let root = dir.appending(path: "Site")
         try StarterSite.create(at: root, title: "Site")
         var site = try Site.load(from: root)
-        site.config.nav = [.init(title: "About", url: "/about/")]
+        site.config.nav = [.init(title: "About", url: "/pages/about/")]
         site.config.header.showLeftLinks = true
         site.config.header.leftLinks = [.init(title: "Shop", url: "/shop/")]
         site.config.header.centerLinks = [.init(title: "Hidden", url: "/hidden/")]
-        var html = try SiteRenderer(site: site).render(path: "/about/") ?? ""
+        var html = try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
         #expect(html.contains(#"<div class="bar-slot bar-left has-brand"><a class="site-title" href="/"><span class="title-text">Site</span></a><nav><a href="/shop/"><span>Shop</span></a></nav></div>"#))
         // Off groups keep their links but don't show them.
         #expect(html.contains(#"<div class="bar-slot bar-center"></div>"#))
-        #expect(html.contains(#"<div class="bar-slot bar-right"><nav><a href="/about/" aria-current="page"><span>About</span></a></nav></div>"#))
+        #expect(html.contains(#"<div class="bar-slot bar-right"><nav><a href="/pages/about/" aria-current="page"><span>About</span></a></nav></div>"#))
         #expect(site.config.menuLinks.map(\.title) == ["Shop", "About"])
 
         site.config.header.showRightLinks = false
-        html = try SiteRenderer(site: site).render(path: "/about/") ?? ""
+        html = try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
         #expect(html.contains(#"<div class="bar-slot bar-right"></div>"#))
         #expect(site.config.menuLinks.map(\.title) == ["Shop"])
     }
@@ -145,15 +145,15 @@ struct TopBarTests {
         var site = try Site.load(from: root)
         site.config.nav = [
             .init(title: "Shop", url: "/shop/", button: true, icon: "shopping-bag"),
-            .init(title: "", url: "/search/", icon: "search"),
-            .init(title: "About", url: "/about/"),
+            .init(title: "", url: "/pages/search/", icon: "search"),
+            .init(title: "About", url: "/pages/about/"),
         ]
-        let html = try SiteRenderer(site: site).render(path: "/about/") ?? ""
+        let html = try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
         let bag = try #require(NavIcon.named("shopping-bag")).svg
         #expect(html.contains(#"<a href="/shop/" class="nav-button">"# + bag + "<span>Shop</span></a>"))
         // No text: just the icon, named for screen readers.
-        #expect(html.contains(#"<a href="/search/" aria-label="Search"><svg class="nav-icon""#))
-        #expect(html.contains(#"<a href="/about/" aria-current="page"><span>About</span></a>"#))
+        #expect(html.contains(#"<a href="/pages/search/" aria-label="Search"><svg class="nav-icon""#))
+        #expect(html.contains(#"<a href="/pages/about/" aria-current="page"><span>About</span></a>"#))
     }
 
     @Test func phoneMenuHasEveryLink() throws {
@@ -164,26 +164,26 @@ struct TopBarTests {
         site.config.header.showLeftLinks = true
         site.config.header.leftLinks = [.init(title: "Work", url: "/work/")]
         site.config.nav = [.init(title: "Shop", url: "/shop/", button: true)]
-        var html = try SiteRenderer(site: site).render(path: "/about/") ?? ""
+        var html = try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
         #expect(html.contains("has-mobile-menu") && html.contains(#"<button class="nav-toggle""#))
         let overlay = try #require(html.components(separatedBy: #"<nav class="nav-overlay-links">"#).last?.components(separatedBy: "</nav>").first)
         #expect(overlay == #"<a href="/work/"><span>Work</span></a><a href="/shop/" class="nav-button"><span>Shop</span></a>"#)
         #expect(html.contains(#"<div class="bar-slot bar-left has-brand">"#))
 
         site.config.header.mobileMenu = false
-        html = try SiteRenderer(site: site).render(path: "/about/") ?? ""
+        html = try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
         #expect(!html.contains("nav-overlay") && !html.contains("has-mobile-menu"))
 
         // No links, no menu button.
         site.config.header.mobileMenu = true
         site.config.header.showLeftLinks = false
         site.config.header.showRightLinks = false
-        html = try SiteRenderer(site: site).render(path: "/about/") ?? ""
+        html = try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
         #expect(!html.contains("nav-toggle"))
     }
 
     @Test func plainLinksStaySmallInSiteJSON() throws {
-        let json = String(decoding: try JSONEncoder().encode(SiteConfig.NavLink(title: "About", url: "/about/")), as: UTF8.self)
+        let json = String(decoding: try JSONEncoder().encode(SiteConfig.NavLink(title: "About", url: "/pages/about/")), as: UTF8.self)
         #expect(!json.contains("button") && !json.contains("icon"))
         let fancy = SiteConfig.NavLink(title: "Shop", url: "/shop/", button: true, icon: "store")
         #expect(try JSONDecoder().decode(SiteConfig.NavLink.self, from: JSONEncoder().encode(fancy)) == fancy)
@@ -197,7 +197,7 @@ struct TopBarTests {
     }
 
     @Test func oldHeadersKeepTheirMenu() throws {
-        let old = try JSONDecoder().decode(SiteConfig.self, from: Data(#"{"nav":[{"title":"About","url":"/about/"}],"header":{"logo":"/a.png","logoHeight":50}}"#.utf8))
+        let old = try JSONDecoder().decode(SiteConfig.self, from: Data(#"{"nav":[{"title":"About","url":"/pages/about/"}],"header":{"logo":"/a.png","logoHeight":50}}"#.utf8))
         #expect(old.header.showRightLinks && !old.header.showLeftLinks && !old.header.showCenterLinks)
         #expect(old.header.logoPosition == .left && old.header.logoWidth == 0 && old.header.logoPadding.isZero)
         #expect(old.menuLinks.map(\.title) == ["About"])
