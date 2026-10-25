@@ -47,6 +47,8 @@ my-site/
     "logoHeight": 56,
     "compactLogo": "/media/files/icon.svg",
     "compactLogoHeight": 28,
+    "darkLogo": "/media/files/logo-dark.svg",
+    "darkCompactLogo": "/media/files/icon-dark.svg",
     "showTitle": false,
     "showLogo": true,
     "logoWidth": 0,
@@ -78,7 +80,8 @@ my-site/
       "paddingBottom": 16
     },
     "menus": [{ "title": "Follow", "page": "social" }],
-    "attribution": { "enabled": false, "text": "" }
+    "attribution": { "enabled": false, "text": "" },
+    "line": { "show": true, "spaceAbove": 64, "padding": 24 }
   }
 }
 ```
@@ -115,7 +118,9 @@ Files in `media/` are tagged in `media.json` at the site's root (committed, not 
 
 `footer` is optional; without it the footer is on with a copyright notice and an RSS link. `copyrightName` empty means the author, or the site title when there's no author. The copyright shows as `© <current year> <name>`.
 
-`header` is optional: the top navigation bar, edited in Configuration → Top Navigation Bar. `mode` is `scrolls` (part of the page; the default), `fixed` (stays at the top at `height`, with the page blurred behind it) or `shrinking` (starts at `height` and shrinks to `compactHeight` as the page scrolls, the logo going from `logoHeight` to `compactLogoHeight` and fading into `compactLogo` when there is one). `logo` empty shows the site title; `showTitle` shows the title next to a logo. `showLogo` false hides the logo (and compact logo), keeping the other logo settings; `showTitle` shows the site title, on its own or next to the logo. With both off, no logo or title is shown. `logoWidth` 0 follows the image's shape (SVG logos always do); `logoAlt` empty uses the site title. `logoPosition` (`left`, `center`, `right`) places the logo and title in the bar, with `logoPadding` around them. The bar has three groups of links: `leftLinks`, `centerLinks`, and `nav` on the right, each shown when its `show…Links` is true (`showRightLinks` defaults to true, so sites made before groups keep their menu). `mobileMenu` (default true) folds the links into a menu button on screens up to 600px wide, which opens them in a full-screen overlay (`header.mobileMenu` in templates is true only when it's on and there are links; base.html adds `has-mobile-menu` to `.site-bar`, `has-brand` to the slot holding the logo and title, a `.nav-toggle` button, and a `#nav-overlay` with every shown link after the bar). Top bar links (in `nav`, `leftLinks` and `centerLinks`) may also have `"button": true` (shown as a button, styled by `navButton` in theme.json) and `"icon"`, the id of one of CardStock's bundled icons (Lucide: `search`, `house`, `mail`, `shopping-bag`, `github`, …), output as an inline `<svg class="nav-icon">`; a link with an icon and no `title` shows just the icon, with an `aria-label`. Sizes are pixels.
+`header` is optional: the top navigation bar, edited in Configuration → Top Navigation Bar. `mode` is `scrolls` (part of the page; the default), `fixed` (stays at the top at `height`, with the page blurred behind it) or `shrinking` (starts at `height` and shrinks to `compactHeight` as the page scrolls, the logo going from `logoHeight` to `compactLogoHeight` and fading into `compactLogo` when there is one). `logo` empty shows the site title; `showTitle` shows the title next to a logo. `darkLogo` and `darkCompactLogo` (optional) replace `logo` and `compactLogo` when the site is dark: with `appearance` `dark` in theme.json they're used outright, with `auto` the renderer wraps each logo `<img>` in a `<picture class="logo-picture">` whose `<source media="(prefers-color-scheme: dark)">` is the dark version (and adds `.logo-picture { display: contents; }`), and with `light` they're not used. `showLogo` false hides the logo (and compact logo), keeping the other logo settings; `showTitle` shows the site title, on its own or next to the logo. With both off, no logo or title is shown. `logoWidth` 0 follows the image's shape (SVG logos always do); `logoAlt` empty uses the site title. `logoPosition` (`left`, `center`, `right`) places the logo and title in the bar, with `logoPadding` around them. The bar has three groups of links: `leftLinks`, `centerLinks`, and `nav` on the right, each shown when its `show…Links` is true (`showRightLinks` defaults to true, so sites made before groups keep their menu). `mobileMenu` (default true) folds the links into a menu button on screens up to 600px wide, which opens them in a full-screen overlay (`header.mobileMenu` in templates is true only when it's on and there are links; base.html adds `has-mobile-menu` to `.site-bar`, `has-brand` to the slot holding the logo and title, a `.nav-toggle` button, and a `#nav-overlay` with every shown link after the bar). Top bar links (in `nav`, `leftLinks` and `centerLinks`) may also have `"button": true` (shown as a button, styled by `navButton` in theme.json) and `"icon"`, the id of one of CardStock's bundled icons (Lucide: `search`, `house`, `mail`, `shopping-bag`, `github`, …), output as an inline `<svg class="nav-icon">`; a link with an icon and no `title` shows just the icon, with an `aria-label`. Sizes are pixels.
+
+`footer.line` is optional: `show` (default true) is the line across the top of the footer, `spaceAbove` the space above the footer and `padding` the space between the line and its contents, in pixels (defaults 64 and 24, the starter theme's own). When any differs from the defaults, CardStock adds a `<style>` to each page's head setting `.site-footer`'s `margin-top`, `padding-top` and, when `show` is false, `border-top: none`, so older themes get it too.
 
 `footer.attribution` is optional: when `enabled`, the footer links to https://github.com/wesvasher/CardStock in a new window, with `text` (empty means `Designed with CardStock`).
 

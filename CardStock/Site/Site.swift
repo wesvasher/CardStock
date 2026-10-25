@@ -211,6 +211,11 @@ struct SiteConfig: Codable, Equatable, Sendable {
         /// Shown when a shrinking bar is small. Empty keeps the main logo.
         var compactLogo = ""
         var compactLogoHeight = 28
+        /// Shown instead of `logo` when the site is dark (always, or on
+        /// visitors' devices set to dark with Auto). Empty keeps `logo`.
+        var darkLogo = ""
+        /// `compactLogo`'s dark version. Empty keeps `compactLogo`.
+        var darkCompactLogo = ""
         /// Show the site title next to the logo.
         var showTitle = true
         /// Bar height for fixed bars, and shrinking bars before scrolling.
@@ -238,6 +243,8 @@ struct SiteConfig: Codable, Equatable, Sendable {
             logoHeight = try c.decodeIfPresent(Int.self, forKey: .logoHeight) ?? d.logoHeight
             compactLogo = try c.decodeIfPresent(String.self, forKey: .compactLogo) ?? ""
             compactLogoHeight = try c.decodeIfPresent(Int.self, forKey: .compactLogoHeight) ?? d.compactLogoHeight
+            darkLogo = try c.decodeIfPresent(String.self, forKey: .darkLogo) ?? ""
+            darkCompactLogo = try c.decodeIfPresent(String.self, forKey: .darkCompactLogo) ?? ""
             showTitle = try c.decodeIfPresent(Bool.self, forKey: .showTitle) ?? d.showTitle
             height = try c.decodeIfPresent(Int.self, forKey: .height) ?? d.height
             compactHeight = try c.decodeIfPresent(Int.self, forKey: .compactHeight) ?? d.compactHeight
@@ -273,6 +280,31 @@ struct SiteConfig: Codable, Equatable, Sendable {
         var menus: [Menu] = []
         /// An optional "Designed with CardStock" link to CardStock's repo.
         var attribution = Attribution()
+        /// The line across the top of the footer and the space around it.
+        var line = Line()
+
+        /// The footer's top line. The defaults match the starter theme's
+        /// style.css (a 1px line, 4rem above, 1.5rem below), so sites only
+        /// get extra CSS once one is changed.
+        struct Line: Codable, Equatable, Sendable {
+            var show = true
+            /// Space between the page and the line, in pixels.
+            var spaceAbove = 64
+            /// Space between the line and the footer's contents, in pixels.
+            var padding = 24
+
+            init() {}
+
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                let d = Line()
+                show = try c.decodeIfPresent(Bool.self, forKey: .show) ?? d.show
+                spaceAbove = try c.decodeIfPresent(Int.self, forKey: .spaceAbove) ?? d.spaceAbove
+                padding = try c.decodeIfPresent(Int.self, forKey: .padding) ?? d.padding
+            }
+
+            var isDefault: Bool { self == Line() }
+        }
 
         struct Attribution: Codable, Equatable, Sendable {
             static let url = "https://github.com/wesvasher/CardStock"
@@ -355,6 +387,7 @@ struct SiteConfig: Codable, Equatable, Sendable {
             logo = try c.decodeIfPresent(Logo.self, forKey: .logo) ?? Logo()
             menus = try c.decodeIfPresent([Menu].self, forKey: .menus) ?? []
             attribution = try c.decodeIfPresent(Attribution.self, forKey: .attribution) ?? Attribution()
+            line = try c.decodeIfPresent(Line.self, forKey: .line) ?? Line()
         }
     }
 

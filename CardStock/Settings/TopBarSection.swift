@@ -6,7 +6,6 @@ import SwiftUI
 struct TopBarSection: View {
     @Environment(AppModel.self) private var model
     @Binding var config: SiteConfig
-    @State private var choosingCompact = false
 
     private typealias Mode = SiteConfig.Header.Mode
     private typealias Position = SiteConfig.Header.Position
@@ -59,6 +58,14 @@ struct TopBarSection: View {
             LogoImageRows(image: header.logo, width: header.logoWidth, height: header.logoHeight,
                           sheetTitle: "Choose a Logo", startHeight: 40)
             if h.hasLogo {
+                LogoFileRow(title: "Dark mode logo", path: header.darkLogo,
+                            emptyText: "Uses the main logo", sheetTitle: "Choose a Dark Mode Logo")
+                if let note = darkLogoNote {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 TextField("Description", text: header.logoAlt, prompt: Text(config.title))
                     .help("Read aloud by screen readers when the site title isn't shown. Leave empty to use the site title.")
             }
@@ -90,7 +97,12 @@ struct TopBarSection: View {
             }
 
             if h.mode == .shrinking && h.hasLogo {
-                compactLogoRow
+                LogoFileRow(title: "Compact logo", path: header.compactLogo,
+                            emptyText: "Uses the main logo, scaled down", sheetTitle: "Choose a Compact Logo")
+                if !h.compactLogo.trimmingCharacters(in: .whitespaces).isEmpty {
+                    LogoFileRow(title: "Dark compact logo", path: header.darkCompactLogo,
+                                emptyText: "Uses the compact logo", sheetTitle: "Choose a Dark Compact Logo")
+                }
                 LabeledContent("Compact logo height") {
                     NudgeSlider(value: number(\.compactLogoHeight), range: 12...120)
                 }
@@ -331,29 +343,17 @@ struct TopBarSection: View {
 
     // MARK: - Rows
 
-    private var compactLogoRow: some View {
-        LabeledContent("Compact logo") {
-            HStack(spacing: 8) {
-                if h.compactLogo.trimmingCharacters(in: .whitespaces).isEmpty {
-                    Text("Uses the main logo, scaled down").foregroundStyle(.secondary)
-                    Button("Choose…") { choosingCompact = true }
-                } else {
-                    Text(h.compactLogo)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Button("Change…") { choosingCompact = true }
-                    Button("Remove") { config.header.compactLogo = "" }
-                }
-            }
-        }
-        .sheet(isPresented: $choosingCompact) {
-            InsertFromFilesSheet(title: "Choose a Compact Logo",
-                                 message: "Pick an image from your site's Files, or choose one from your Mac to copy it in.",
-                                 actionTitle: "Choose",
-                                 allowsMacFiles: true) { file in
-                config.header.compactLogo = "/" + file.path
-            }
+    /// What the dark logo does with the site's appearance (Configuration → Colors).
+    private var darkLogoNote: String? {
+        let dark = !h.darkLogo.trimmingCharacters(in: .whitespaces).isEmpty
+        switch model.site?.theme?.appearance ?? .auto {
+        case .auto:
+            return dark ? "Shown instead of the main logo to visitors whose device is set to dark."
+                : "Add a version of your logo for dark backgrounds, shown to visitors whose device is set to dark."
+        case .dark:
+            return dark ? "Your site is always dark, so this logo is the one shown." : nil
+        case .light:
+            return dark ? "Your site is always light (Configuration → Colors), so this logo isn't shown." : nil
         }
     }
 
@@ -459,5 +459,41 @@ private struct HexField: View {
         let normalized = "#" + hex.lowercased()
         text = normalized
         onCommit(normalized)
+    }
+}
+
+/// One logo image, chosen from Files or the Mac: its address with Change…
+/// and Remove, or a note about what's used without it and Choose….
+private struct LogoFileRow: View {
+    let title: String
+    @Binding var path: String
+    let emptyText: String
+    let sheetTitle: String
+    @State private var choosing = false
+
+    var body: some View {
+        LabeledContent(title) {
+            HStack(spacing: 8) {
+                if path.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Text(emptyText).foregroundStyle(.secondary)
+                    Button("Choose…") { choosing = true }
+                } else {
+                    Text(path)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Button("Change…") { choosing = true }
+                    Button("Remove") { path = "" }
+                }
+            }
+        }
+        .sheet(isPresented: $choosing) {
+            InsertFromFilesSheet(title: sheetTitle,
+                                 message: "Pick an image from your site's Files, or choose one from your Mac to copy it in.",
+                                 actionTitle: "Choose",
+                                 allowsMacFiles: true) { file in
+                path = "/" + file.path
+            }
+        }
     }
 }

@@ -10,10 +10,14 @@ struct EditorView: View {
     @State private var pendingImages: PendingImages?
     @State private var showFilePicker = false
     @State private var confirmDelete = false
+    /// The Page Settings accordion; closed whenever a page opens, so the
+    /// text sits high.
+    @State private var settingsOpen = false
 
     var body: some View {
         form
         .safeAreaInset(edge: .bottom, spacing: 0) { footer }
+        .onChange(of: item.id) { settingsOpen = false }
         .confirmationDialog("Move “\(current.title)” to the Trash?", isPresented: $confirmDelete) {
             Button("Move to Trash", role: .destructive) { delete() }
         } message: {
@@ -75,9 +79,23 @@ struct EditorView: View {
                             }
                         }
                     }
+                }
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+
+                PageSettingsButton(isOpen: $settingsOpen, summary: settingsSummary)
+
+                if settingsOpen {
+                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 8) {
+                    let kind = current.kind
+                    let collection = config.collection(for: kind)
                     if kind != .links && !current.isTemplatePage && !current.isSearchPage {
-                        GridRow {
+                        // Top-aligned: the cards' column has text (a note)
+                        // under them that comes and goes, and lining the
+                        // label up with it would move the cards.
+                        GridRow(alignment: .top) {
                             label("Layout")
+                                .padding(.top, 4)
                             LayoutPicker(item: current, layout: field("layout"))
                         }
                     }
@@ -158,6 +176,9 @@ struct EditorView: View {
                 }
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
+                // Fades in as the space opens, without sliding past the button.
+                .transition(.opacity)
+                }
             }
             .padding(16)
 
@@ -244,7 +265,28 @@ struct EditorView: View {
         Text(text)
             .font(.callout)
             .foregroundStyle(.secondary)
+            // A fixed width so the Type row and the settings line up.
+            .frame(minWidth: 76, alignment: .trailing)
             .gridColumnAlignment(.trailing)
+    }
+
+    /// A line for the closed Page Settings button: what's set on this page.
+    private var settingsSummary: String {
+        var parts: [String] = []
+        let kind = current.kind
+        if kind != .links && !current.isTemplatePage && !current.isSearchPage {
+            let layout = model.site?.layouts.first { $0.id == current.layout }?.name
+            parts.append("\(layout ?? (current.layout.isEmpty ? "Standard" : current.layout)) layout")
+        }
+        if current.isDraft { parts.append("Draft") }
+        if kind.isItem, let c = config.collection(for: kind), c.dated {
+            let day = try? Date(current.date + "T12:00:00Z", strategy: .iso8601)
+            parts.append(day?.formatted(date: .abbreviated, time: .omitted) ?? (current.date.isEmpty ? "No date" : current.date))
+        }
+        if !current.tags.isEmpty {
+            parts.append(current.tags.count == 1 ? "1 tag" : "\(current.tags.count) tags")
+        }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: - Bindings
@@ -440,27 +482,16 @@ private struct CategoryPicker: View {
     }
 }
 
-/// A page's layout as an accordion: closed, it shows the current layout
-/// (Standard is the type's own design); open, every layout that suits the
-/// page's type is a card, and picking one animates the selection.
+/// A page's layout: Standard (the type's own design) and every layout that
+/// suits the page's type, as cards; picking one animates the selection.
 private struct LayoutPicker: View {
     @Environment(AppModel.self) private var model
     let item: ContentItem
     @Binding var layout: String
-    @State private var isOpen = false
 
     private var layouts: [PageLayout] { model.site?.layouts ?? [] }
     private var chosen: PageLayout? { layouts.first { $0.id == item.layout } }
     private var isMissing: Bool { !item.layout.isEmpty && chosen == nil }
-
-    private var currentName: String {
-        if isMissing { return "Missing: \(item.layout)" }
-        return chosen?.name ?? "Standard"
-    }
-    private var currentImage: String {
-        if isMissing { return "exclamationmark.triangle" }
-        return chosen?.systemImage ?? PageLayout.standardImage
-    }
 
     private var options: [ChoiceCards<String>.Option] {
         var list: [ChoiceCards<String>.Option] = [
@@ -480,56 +511,32 @@ private struct LayoutPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Button {
-                    withAnimation(.snappy(duration: 0.3)) { isOpen.toggle() }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .rotationEffect(.degrees(isOpen ? 90 : 0))
-                        Image(systemName: currentImage)
-                            .foregroundStyle(isMissing ? AnyShapeStyle(.orange) : AnyShapeStyle(.tint))
-                            .frame(width: 18)
-                            .contentTransition(.symbolEffect(.replace))
-                        Text(currentName)
-                            .contentTransition(.opacity)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help(isOpen ? "Hide the layouts" : "Show the layouts")
-                .accessibilityLabel("Layout: \(currentName)")
-                .accessibilityHint(isOpen ? "Hides the layouts" : "Shows the layouts")
-                Spacer(minLength: 0)
-                Button("Layouts…") { model.showConfiguration(.layouts) }
-                    .buttonStyle(.link)
-                    .controlSize(.small)
-            }
-            if isOpen {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 96, maximum: 140), spacing: 10)],
-                          alignment: .leading, spacing: 10) {
-                    ForEach(options, id: \.value) { option in
-                        ChoiceCard(title: option.title, systemImage: option.systemImage, help: option.help,
-                                   isSelected: layout == option.value) {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                layout = option.value
-                            }
-                        }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 96, maximum: 140), spacing: 10)],
+                      alignment: .leading, spacing: 10) {
+                ForEach(options, id: \.value) { option in
+                    // No withAnimation here: the card animates its own
+                    // selection, and the rest of the editor just updates.
+                    ChoiceCard(title: option.title, systemImage: option.systemImage, help: option.help,
+                               isSelected: layout == option.value) {
+                        layout = option.value
                     }
                 }
-                .padding(.vertical, 2)
-                .transition(.opacity.combined(with: .move(edge: .top)))
             }
+            .padding(.vertical, 2)
             if let note {
+                // A line limit, not fixedSize: the editor's grid measures this
+                // column at its narrowest first, and an unlimited note would
+                // be measured many lines tall and leave a gap below.
                 Text(note)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
+                    .help(note)
             }
+            Button("Edit Layouts…") { model.showConfiguration(.layouts) }
+                .buttonStyle(.link)
+                .controlSize(.small)
         }
-        .clipped()
     }
 
     private var note: String? {
@@ -541,5 +548,63 @@ private struct LayoutPicker: View {
         let used = PageLayout.sections(of: item.body).count
         return "Areas: \(chosen.areas.joined(separator: ", ")). Section breaks move text to the next area"
             + (used > 1 ? " (this page has \(used) sections)." : "; without them, it all goes in \(chosen.mainArea).")
+    }
+}
+
+/// The big, easy-to-hit button that opens and closes a page's settings
+/// (everything but its type), with a line saying what's set.
+private struct PageSettingsButton: View {
+    @Binding var isOpen: Bool
+    let summary: String
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            withAnimation(.snappy(duration: 0.3)) { isOpen.toggle() }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.tint)
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Page Settings")
+                        .font(.callout.weight(.semibold))
+                    if !summary.isEmpty && !isOpen {
+                        Text(summary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .transition(.opacity)
+                    }
+                }
+                Spacer(minLength: 0)
+                Text(isOpen ? "Hide" : "Show")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.interpolate)
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(isOpen ? 180 : 0))
+            }
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.primary.opacity(hovering ? 0.08 : 0.045))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Color(nsColor: .separatorColor))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.15), value: hovering)
+        .help(isOpen ? "Hide this page's settings" : "Show this page's settings")
+        .accessibilityLabel("Page Settings")
+        .accessibilityValue(isOpen ? "Shown" : "Hidden")
     }
 }

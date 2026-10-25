@@ -68,14 +68,18 @@ struct ChoiceCard: View {
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 14)
+            // Only the fill and border animate the selection, never the
+            // card's position.
             .background(
                 RoundedRectangle(cornerRadius: 10)
                     .fill(isSelected ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
                     .strokeBorder(isSelected ? Color.accentColor : Color(nsColor: .separatorColor),
                                   lineWidth: isSelected ? 2 : 1)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
             )
             .overlay(alignment: .topTrailing) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")

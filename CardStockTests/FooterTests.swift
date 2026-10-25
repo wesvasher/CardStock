@@ -18,6 +18,20 @@ struct FooterTests {
         return String(html[start.lowerBound..<end.upperBound])
     }
 
+    @Test func footerLine() throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // Defaults leave the theme's own line alone.
+        #expect(!(try render { _ in }).contains(".site-footer { margin-top"))
+        var html = try render { $0.footer.line.show = false }
+        #expect(html.contains("<style>.site-footer { margin-top: 64px; padding-top: 24px; border-top: none; }</style>"))
+        html = try render { $0.footer.line.spaceAbove = 32; $0.footer.line.padding = 8 }
+        #expect(html.contains("<style>.site-footer { margin-top: 32px; padding-top: 8px; }</style>"))
+        html = try render { $0.footer.line.show = false; $0.footer.enabled = false }
+        #expect(!html.contains(".site-footer { margin-top"))
+        let old = try JSONDecoder().decode(SiteConfig.self, from: Data(#"{"footer":{"enabled":true}}"#.utf8))
+        #expect(old.footer.line.isDefault)
+    }
+
     @Test func defaultsMatchTheOldFooter() throws {
         let old = #"{"title":"Old","author":"Ann Lee"}"#
         let config = try JSONDecoder().decode(SiteConfig.self, from: Data(old.utf8))

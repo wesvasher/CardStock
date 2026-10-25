@@ -630,10 +630,16 @@ struct SiteRenderer: Sendable {
         var context = context
         context["body"] = .string(insertWidgets(into: body))
         var html = Lightbox.inject(into: templates["base"]!.render(.dict(context)))
+        html = insertDarkLogos(into: html)
         // Styles for lists, galleries, pagers and videos, on pages that have them.
         if Self.collectionMarkers.contains(where: body.contains),
            let head = html.range(of: "</head>", options: .caseInsensitive) {
             html.insert(contentsOf: Self.collectionStyle, at: head.lowerBound)
+        }
+        // The footer's line, when its settings differ from the theme's.
+        if let style = Self.footerLineStyle(site.config.footer),
+           let head = html.range(of: "</head>", options: .caseInsensitive) {
+            html.insert(contentsOf: style, at: head.lowerBound)
         }
         // Theming settings go last in <head> so they override the theme's CSS.
         guard let theme = site.theme, let head = html.range(of: "</head>", options: .caseInsensitive) else { return html }
@@ -879,7 +885,12 @@ extension SiteRenderer {
         let shrinks = h.mode == .shrinking
         let compactHeight = shrinks ? min(h.compactHeight, h.height) : h.height
         let compactLogoHeight = shrinks ? h.compactLogoHeight : h.logoHeight
-        let compactLogo = shrinks && h.isLogoShown ? src(h.compactLogo) : ""
+        // A site that's always dark shows the dark logos outright (Auto
+        // swaps them in later, in `insertDarkLogos`).
+        let alwaysDark = site.theme?.appearance == .dark
+        let mainLogo = alwaysDark && !src(h.darkLogo).isEmpty ? src(h.darkLogo) : src(h.logo)
+        let smallLogo = alwaysDark && !src(h.darkCompactLogo).isEmpty ? src(h.darkCompactLogo) : src(h.compactLogo)
+        let compactLogo = shrinks && h.isLogoShown ? smallLogo : ""
         let logoHeight = max(h.logoHeight, 8)
         let compactLogoH = max(compactLogoHeight, 8)
         // Logo widths only apply to images CardStock can size; SVGs follow their shape.
@@ -899,7 +910,7 @@ extension SiteRenderer {
             "mode": .string(h.mode.rawValue),
             "fixed": .bool(h.mode != .scrolls),
             "shrinks": .bool(shrinks),
-            "logo": .string(h.isLogoShown ? src(h.logo) : ""),
+            "logo": .string(h.isLogoShown ? mainLogo : ""),
             "logoAlt": .string(alt.isEmpty ? c.title : alt),
             "logoWidth": .bool(logoWidth > 0),
             "compactLogo": .string(compactLogo),
@@ -911,6 +922,51 @@ extension SiteRenderer {
             "showTitle": .bool(h.showTitle),
             "style": .string(style),
         ])
+    }
+
+    /// With Auto appearance, wraps the top bar's logos in a `<picture>`
+    /// whose dark source shows on devices set to dark. Done here rather
+    /// than in base.html so sites with older themes get it too.
+    func insertDarkLogos(into html: String) -> String {
+        let h = site.config.header
+        guard h.isLogoShown, (site.theme?.appearance ?? .auto) == .auto else { return html }
+        func src(_ path: String) -> String {
+            let path = path.trimmingCharacters(in: .whitespaces)
+            guard !path.isEmpty else { return "" }
+            return path.hasPrefix("/") || path.contains("://") ? path : "/" + path
+        }
+        var html = html
+        var changed = false
+        for (cls, light, dark) in [("logo-large", h.logo, h.darkLogo), ("logo-compact", h.compactLogo, h.darkCompactLogo)] {
+            let light = src(light), dark = src(dark)
+            guard !light.isEmpty, !dark.isEmpty, dark != light else { continue }
+            let start = #"<img class="logo \#(cls)" src="\#(escapeHTML(light))""#
+            var from = html.startIndex
+            while let open = html.range(of: start, range: from..<html.endIndex),
+                  let close = html.range(of: ">", range: open.upperBound..<html.endIndex) {
+                let img = html[open.lowerBound..<close.upperBound]
+                let picture = #"<picture class="logo-picture"><source media="(prefers-color-scheme: dark)" srcset="\#(escapeHTML(dark))">"#
+                    + img + "</picture>"
+                html.replaceSubrange(open.lowerBound..<close.upperBound, with: picture)
+                from = html.index(open.lowerBound, offsetBy: picture.count)
+                changed = true
+            }
+        }
+        // The picture steps aside so the image stays in the logo's grid.
+        if changed, let head = html.range(of: "</head>", options: .caseInsensitive) {
+            html.insert(contentsOf: "<style>.logo-picture { display: contents; }</style>\n", at: head.lowerBound)
+        }
+        return html
+    }
+
+    /// CSS for the footer's top line and its spacing, or nil when the
+    /// footer is off or the settings are the defaults (the theme's own).
+    static func footerLineStyle(_ footer: SiteConfig.Footer) -> String? {
+        let line = footer.line
+        guard footer.enabled, !line.isDefault else { return nil }
+        var css = ".site-footer { margin-top: \(max(line.spaceAbove, 0))px; padding-top: \(max(line.padding, 0))px;"
+        if !line.show { css += " border-top: none;" }
+        return "<style>" + css + " }</style>\n"
     }
 
     /// A unitless CSS number with up to 4 decimals, e.g. 0.5 or 0.6667.

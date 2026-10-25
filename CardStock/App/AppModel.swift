@@ -625,7 +625,9 @@ final class AppModel {
         if !(base.contains("footer.enabled") && base.contains(#"class="rss""#) && base.contains("footer.logo") && base.contains("footer.menus") && base.contains("footer-row") && base.contains("footer.attribution") && base.contains("site-bar") && base.contains("bar-slot") && base.contains("nav-button") && base.contains("nav-overlay")) {
             outdated.append("theme/base.html")
         }
-        if !read("theme/post.html").contains("categoryLinks") {
+        // Older themes' post template (sites made since 0.5 use item.html).
+        let post = read("theme/post.html")
+        if !post.isEmpty && !post.contains("categoryLinks") {
             outdated.append("theme/post.html")
         }
         // The Template page (preview only) gained images and a drop-down menu.

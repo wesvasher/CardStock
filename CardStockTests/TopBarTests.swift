@@ -103,6 +103,41 @@ struct TopBarTests {
         #expect(html.contains(#"</nav><a class="site-title""#), "the logo comes after the right-hand links")
     }
 
+    @Test func darkLogos() throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let root = dir.appending(path: "Site")
+        try StarterSite.create(at: root, title: "Site")
+        var site = try Site.load(from: root)
+        site.config.header.logo = "/media/files/logo.png"
+        site.config.header.darkLogo = "/media/files/logo-dark.png"
+        site.config.header.mode = .shrinking
+        site.config.header.compactLogo = "/media/files/icon.png"
+        site.config.header.darkCompactLogo = "/media/files/icon-dark.png"
+
+        // Auto: the dark versions show on devices set to dark.
+        site.theme = site.theme ?? ThemeSettings()
+        site.theme?.appearance = .auto
+        var html = try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
+        #expect(html.contains(#"<picture class="logo-picture"><source media="(prefers-color-scheme: dark)" srcset="/media/files/logo-dark.png"><img class="logo logo-large" src="/media/files/logo.png""#))
+        #expect(html.contains(#"<source media="(prefers-color-scheme: dark)" srcset="/media/files/icon-dark.png"><img class="logo logo-compact" src="/media/files/icon.png""#))
+        #expect(html.components(separatedBy: ".logo-picture { display: contents; }").count == 2)
+
+        // Always dark: the dark logos outright.
+        site.theme?.appearance = .dark
+        html = try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
+        #expect(html.contains(#"<img class="logo logo-large" src="/media/files/logo-dark.png""#))
+        #expect(html.contains(#"<img class="logo logo-compact" src="/media/files/icon-dark.png""#))
+        #expect(!html.contains("<picture"))
+
+        // Always light: never.
+        site.theme?.appearance = .light
+        html = try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
+        #expect(!html.contains("logo-dark") && !html.contains("icon-dark") && !html.contains("<picture"))
+
+        let old = try JSONDecoder().decode(SiteConfig.self, from: Data(#"{"header":{"logo":"/a.png"}}"#.utf8))
+        #expect(old.header.darkLogo.isEmpty && old.header.darkCompactLogo.isEmpty)
+    }
+
     @Test func hiddenLogoKeepsSettings() throws {
         defer { try? FileManager.default.removeItem(at: dir) }
         let html = try render { header in

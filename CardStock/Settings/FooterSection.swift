@@ -22,6 +22,36 @@ struct FooterSection: View {
         }
 
         if config.footer.enabled {
+            Section {
+                Toggle(isOn: footer.line.show) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Line at the top")
+                        Text("A thin line across the top of the footer, in your Lines and borders color.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+                LabeledContent(config.footer.line.show ? "Space above line" : "Space above footer") {
+                    NudgeSlider(value: lineNumber(\.spaceAbove), range: 0...200)
+                }
+                LabeledContent(config.footer.line.show ? "Padding below line" : "Padding at top") {
+                    NudgeSlider(value: lineNumber(\.padding), range: 0...120)
+                }
+                if !config.footer.line.isDefault {
+                    Button("Reset to Default") {
+                        config.footer.line = .init()
+                    }
+                    .controlSize(.small)
+                }
+            } header: {
+                Text("Divider")
+            } footer: {
+                Text("Space above is between the page and the footer; padding is between the line and what's in the footer.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Copyright") {
                 Toggle("Copyright notice", isOn: footer.showCopyright)
                     .toggleStyle(.switch)
@@ -96,6 +126,11 @@ struct FooterSection: View {
     private var defaultName: String {
         let author = config.author.trimmingCharacters(in: .whitespaces)
         return author.isEmpty ? config.title : author
+    }
+
+    private func lineNumber(_ keyPath: WritableKeyPath<SiteConfig.Footer.Line, Int>) -> Binding<Double> {
+        Binding(get: { Double(config.footer.line[keyPath: keyPath]) },
+                set: { config.footer.line[keyPath: keyPath] = Int($0.rounded()) })
     }
 
     private func add(_ title: String, _ url: String) {
