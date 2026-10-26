@@ -32,20 +32,34 @@ struct SiteIconTests {
 
         site.config.icon.image = "/media/files/icon.png"
         var html = try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
-        #expect(html.contains("<link rel=\"icon\" href=\"/favicon-32.png\" sizes=\"32x32\" type=\"image/png\">"))
+        #expect(html.contains("<link rel=\"icon\" href=\"/favicon-32.png\" type=\"image/png\">"))
         #expect(html.contains("<link rel=\"apple-touch-icon\" href=\"/apple-touch-icon.png\">"))
         #expect(html.contains("<meta name=\"apple-mobile-web-app-title\" content=\"Field Notes\">"))
         #expect(html.contains("<link rel=\"manifest\" href=\"/site.webmanifest\">"))
 
-        // A custom favicon is linked as it is; turned off, it's ignored.
+        // A chosen favicon is linked as it is.
         site.config.icon.favicon = "/media/files/spin.gif"
-        #expect((try SiteRenderer(site: site).render(path: "/") ?? "").contains("favicon-32.png"))
-        site.config.icon.customFavicon = true
         site.config.icon.name = "Notes"
         html = try SiteRenderer(site: site).render(path: "/") ?? ""
         #expect(html.contains("<link rel=\"icon\" href=\"/media/files/spin.gif\" type=\"image/gif\">"))
         #expect(!html.contains("favicon-32.png"))
         #expect(html.contains("content=\"Notes\""))
+
+        // A dark favicon: each one says which appearance it's for.
+        site.config.icon.darkMode = true
+        site.config.icon.darkFavicon = "/media/files/spin-dark.gif"
+        html = try SiteRenderer(site: site).render(path: "/") ?? ""
+        #expect(html.contains("<link rel=\"icon\" href=\"/media/files/spin.gif\" type=\"image/gif\" media=\"(prefers-color-scheme: light)\">"))
+        #expect(html.contains("<link rel=\"icon\" href=\"/media/files/spin-dark.gif\" type=\"image/gif\" media=\"(prefers-color-scheme: dark)\">"))
+        // Made favicons use the dark site icon instead.
+        site.config.icon.favicon = ""
+        #expect(!(try SiteRenderer(site: site).render(path: "/") ?? "").contains("prefers-color-scheme"))
+        site.config.icon.darkImage = "/media/files/icon-dark.png"
+        html = try SiteRenderer(site: site).render(path: "/") ?? ""
+        #expect(html.contains("<link rel=\"icon\" href=\"/favicon-32.png\" type=\"image/png\" media=\"(prefers-color-scheme: light)\">"))
+        #expect(html.contains("<link rel=\"icon\" href=\"/favicon-dark-32.png\" type=\"image/png\" media=\"(prefers-color-scheme: dark)\">"))
+        site.config.icon.darkMode = false
+        site.config.icon.favicon = "/media/files/spin.gif"
 
         // Just a favicon, no site icon: no home screen tags.
         site.config.icon.image = ""
@@ -59,7 +73,12 @@ struct SiteIconTests {
         let config = try JSONDecoder().decode(SiteConfig.self, from: Data(#"{"title":"A","icon":{"image":"/media/files/i.png"}}"#.utf8))
         #expect(config.icon.image == "/media/files/i.png")
         #expect(config.icon.background == "#ffffff")
-        #expect(!config.icon.customFavicon)
+        #expect(config.icon.customFaviconPath == nil)
+        // A favicon chosen while the old switch was off wasn't used, and still isn't.
+        let off = try JSONDecoder().decode(SiteConfig.self, from: Data(#"{"icon":{"customFavicon":false,"favicon":"/media/files/f.gif"}}"#.utf8))
+        #expect(off.icon.favicon.isEmpty)
+        let on = try JSONDecoder().decode(SiteConfig.self, from: Data(#"{"icon":{"customFavicon":true,"favicon":"/media/files/f.gif"}}"#.utf8))
+        #expect(on.icon.customFaviconPath == "/media/files/f.gif")
         let old = try JSONDecoder().decode(SiteConfig.self, from: Data(#"{"title":"A"}"#.utf8))
         #expect(!old.icon.isSet)
     }
@@ -106,8 +125,15 @@ struct SiteIconTests {
         // The bottom-left pixel (r, g, b, a).
         #expect(pixel[0] < 10 && pixel[2] > 245 && pixel[3] == 255)
 
+        // A dark mode icon makes the dark favicon.
+        try writeImage(to: site.root.appending(path: "media/files/icon-dark.png"))
+        site.config.icon.darkMode = true
+        site.config.icon.darkImage = "/media/files/icon-dark.png"
+        _ = try SiteBuilder.build(site)
+        #expect(ImageImporter.pixelSize(of: out.appending(path: "favicon-dark-32.png"))! == (32, 32))
+        site.config.icon.darkMode = false
+
         // A custom favicon skips the made one; a missing icon only warns.
-        site.config.icon.customFavicon = true
         site.config.icon.favicon = "/media/files/missing.gif"
         site.config.icon.image = "/media/files/nope.png"
         let second = try SiteBuilder.build(site)

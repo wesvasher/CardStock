@@ -76,6 +76,11 @@ struct SiteView: View {
             List(selection: $model.selection) {
                 Label("Start", systemImage: "square.grid.2x2")
                     .tag(SidebarSelection.start)
+                Label("Status", systemImage: "stethoscope")
+                    .badge(model.healthProblemCount)
+                    .help(model.healthProblemCount == 0 ? "Site Health: all good"
+                          : "Site Health: \(model.healthProblemCount) \(model.healthProblemCount == 1 ? "thing" : "things") to fix")
+                    .tag(SidebarSelection.status)
                 Label("Configuration", systemImage: "slider.horizontal.3")
                     .tag(SidebarSelection.configuration)
                 HStack {
@@ -272,6 +277,8 @@ struct DetailView: View {
                 switch model.selection {
                 case .start:
                     StartView(site: site)
+                case .status:
+                    StatusView(site: site)
                 case .configuration:
                     EmptyView() // Shown above, with its own preview.
                 case .publish:

@@ -33,7 +33,7 @@ Yes, they're plain text. Choose **Site → Reload from Disk** (⇧⌘R) afterwar
 
 ### How much space am I using on GitHub?
 
-Open [Site Details](cardstock:site-details) in Configuration and look at **Storage**. It shows the size GitHub reports for your repository, compared with GitHub's suggestion of staying under about 1 GB, and warns about any file too big for GitHub (100 MB) or Cloudflare (25 MB). Deleting files doesn't make the repository smaller, because GitHub keeps every published version, so optimized images are the best way to stay small.
+Open [Status](cardstock:status) in the sidebar and look at **Storage**. It shows the size GitHub reports for your repository, compared with GitHub's suggestion of staying under about 1 GB, and warns about any file too big for GitHub (100 MB) or Cloudflare (25 MB). Deleting files doesn't make the repository smaller, because GitHub keeps every published version, so optimized images are the best way to stay small.
 
 ### Is my GitHub token safe?
 

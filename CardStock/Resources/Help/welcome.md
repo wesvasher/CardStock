@@ -17,7 +17,8 @@ CardStock is an editor for a simple website: pages, a blog and a small shop. You
 
 | Item | What it's for |
 |---|---|
-| Start | Shortcuts, a site health checklist, your publishing activity and writing stats. Shown when a site opens |
+| Start | Shortcuts, your publishing activity and writing stats. Shown when a site opens |
+| Status | A site health checklist, how your site gets online (and which steps are set up), and guides for fixing problems. The number next to it is how many things need fixing |
 | Configuration | Site Details (title, description and web address), then the look: templates, layouts, fonts, colors, top bar and menu, footer, corners and width |
 | Publishing | GitHub, publishing status and hosting help |
 | Pages | Every page: static pages, every collection's items, main pages and categories, and link menus |

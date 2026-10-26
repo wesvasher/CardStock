@@ -38,4 +38,4 @@ To link to the short address, choose it from the page menu next to a link in [To
 
 Click the trash button next to the folder and confirm. Only the short address goes away; the page stays at its own address. Links to the short address stop working, so update any that use it.
 
-If a folder's page is deleted or turned into a draft, the folder isn't published until you choose another page or publish the page again. The Start screen's health check lists folders whose page is gone.
+If a folder's page is deleted or turned into a draft, the folder isn't published until you choose another page or publish the page again. The Site Health checklist on [Status](cardstock:status) lists folders whose page is gone.

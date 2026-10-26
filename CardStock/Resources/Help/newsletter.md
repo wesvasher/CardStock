@@ -26,4 +26,4 @@ That adds a `<!-- newsletter -->` line, highlighted in the editor. On your site,
 
 > Some services' forms only work on your live site, so the preview may show an empty space or an error. Publish and check the page online.
 
-Until there's embed code, the preview shows a note where the box goes, the box is left out of your published site, and the Start screen's health checklist reminds you.
+Until there's embed code, the preview shows a note where the box goes, the box is left out of your published site, and the Site Health checklist on [Status](cardstock:status) reminds you.

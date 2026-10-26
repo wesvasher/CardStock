@@ -14,7 +14,7 @@ struct HelpTests {
 
     @Test func linksPointSomewhere() throws {
         let ids = Set(HelpCenter.articles.map(\.id))
-        let appTargets = Set(["configuration", "publishing", "files", "pages", "home"] + ConfigPage.allCases.map(\.linkName))
+        let appTargets = Set(["configuration", "status", "publishing", "files", "pages", "home"] + ConfigPage.allCases.map(\.linkName))
         let regex = try NSRegularExpression(pattern: #"\]\((help|cardstock):([^)]+)\)"#)
         for article in HelpCenter.articles {
             let ns = article.body as NSString

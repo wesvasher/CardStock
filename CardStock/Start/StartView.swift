@@ -20,7 +20,6 @@ struct StartView: View {
                         StartTile(tile: tile, isLarge: true)
                     }
                 }
-                HowItWorksCard()
                 // Everything else, all the same size.
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 14)], spacing: 14) {
                     ForEach(tiles) { tile in
@@ -102,18 +101,7 @@ struct StartView: View {
     private var dashboard: some View {
         VStack(alignment: .leading, spacing: 14) {
             ActivityCalendarCard()
-            // Side by side at the same height when there's room; stacked otherwise.
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 14) {
-                    HealthCard(site: current).frame(minWidth: 340)
-                    WritingCard(site: current).frame(minWidth: 340)
-                }
-                .fixedSize(horizontal: false, vertical: true)
-                VStack(spacing: 14) {
-                    HealthCard(site: current)
-                    WritingCard(site: current)
-                }
-            }
+            WritingCard(site: current)
         }
     }
 

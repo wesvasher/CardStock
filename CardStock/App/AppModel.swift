@@ -6,6 +6,8 @@ import SwiftUI
 /// What's selected in the sidebar.
 enum SidebarSelection: Hashable {
     case start
+    /// Site health, connections and help with problems.
+    case status
     case configuration
     case publish
     case pages
@@ -14,11 +16,11 @@ enum SidebarSelection: Hashable {
     case item(URL)
 
     /// Whether this view has a right-hand column (a preview, a file, or a
-    /// help article). Start, Configuration and Publishing don't.
+    /// help article). Start, Status, Configuration and Publishing don't.
     var hasPreviewColumn: Bool {
         switch self {
         case .pages, .files, .help, .item: true
-        case .start, .configuration, .publish: false
+        case .start, .status, .configuration, .publish: false
         }
     }
 }
@@ -41,9 +43,14 @@ final class AppModel {
     var errorMessage: String?
     var statusMessage: String?
     /// Bumped whenever content changes so the preview can refresh.
-    private(set) var revision = 0
+    private(set) var revision = 0 { didSet { scheduleHealthCount() } }
+    /// How many problems Site Health lists, for the badge on Status in the
+    /// sidebar. Counted a moment after the site or its files change, since
+    /// the checks read files on disk.
+    private(set) var healthProblemCount = 0
+    private var healthTask: Task<Void, Never>?
     /// Everything in the site's media/ folder, for the Files page.
-    private(set) var files: [MediaFile] = []
+    private(set) var files: [MediaFile] = [] { didSet { scheduleHealthCount() } }
     /// Files selected on the Files page; the preview column shows them.
     var selectedFileIDs: Set<MediaFile.ID> = []
     /// The page selected on the Pages view; the preview column shows it.
@@ -117,7 +124,7 @@ final class AppModel {
     /// ignores its font, corner and width settings.
     /// Theme files (relative paths) made before newer CardStock features,
     /// such as Theming settings or the editable Home page.
-    private(set) var outdatedThemeFiles: [String] = []
+    private(set) var outdatedThemeFiles: [String] = [] { didSet { scheduleHealthCount() } }
     private var saveTask: Task<Void, Never>?
 
     private static let lastSiteKey = "lastSitePath"
@@ -294,7 +301,7 @@ final class AppModel {
         switch selected {
         case .item(let id) where site?.items.contains(where: { $0.id == id }) == true:
             selection = selected
-        case .start, .configuration, .publish, .pages, .files, .help:
+        case .start, .status, .configuration, .publish, .pages, .files, .help:
             selection = selected
         default:
             break
@@ -1100,10 +1107,29 @@ final class AppModel {
         selection = .help
     }
 
+    /// Recounts Site Health's problems once changes settle.
+    private func scheduleHealthCount() {
+        healthTask?.cancel()
+        healthTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(800))
+            guard !Task.isCancelled else { return }
+            self?.countHealthProblems()
+        }
+    }
+
+    private func countHealthProblems() {
+        let count = site.map { site in
+            SiteInsights.healthChecks(site, files: files, outdatedThemeFiles: outdatedThemeFiles)
+                .reduce(0) { $0 + ($1.passed ? 0 : $1.problems.count) }
+        } ?? 0
+        if count != healthProblemCount { healthProblemCount = count }
+    }
+
     /// Follows a `cardstock:` link from a help article.
     func openAppLink(_ target: String) {
         switch target {
         case "configuration": selection = .configuration
+        case "status": selection = .status
         case "theming": showConfiguration(.templates)
         case "layout": showConfiguration(.components)
         case _ where ConfigPage.allCases.contains { $0.linkName == target }:
