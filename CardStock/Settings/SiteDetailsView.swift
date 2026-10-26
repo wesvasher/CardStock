@@ -18,6 +18,8 @@ struct SiteDetailsView: View {
                 TextField("Language", text: config(\.language), prompt: Text("en"))
             }
 
+            SiteIconSection()
+
             StorageSection()
         }
         .formStyle(.grouped)

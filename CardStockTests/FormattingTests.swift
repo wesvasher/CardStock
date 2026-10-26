@@ -11,6 +11,23 @@ struct FormattingTests {
         ((text as NSString).replacingCharacters(in: edit.range, with: edit.replacement), edit.selection)
     }
 
+    @Test func lineBreaks() throws {
+        // Mid-line: <br> and a new line, cursor at its start.
+        var (text, sel) = run("Ann Lee 12 Main St", F.lineBreak("Ann Lee 12 Main St", NSRange(location: 8, length: 0)))
+        #expect(text == "Ann Lee \\\n12 Main St")
+        #expect(sel == NSRange(location: 10, length: 0))
+        // At the end of a line: just <br>, cursor on the next line.
+        (text, sel) = run("Ann Lee\n12 Main St", F.lineBreak("Ann Lee\n12 Main St", NSRange(location: 7, length: 0)))
+        #expect(text == "Ann Lee\\\n12 Main St")
+        #expect(sel == NSRange(location: 9, length: 0))
+        // A selection is replaced.
+        (text, _) = run("a, b", F.lineBreak("a, b", NSRange(location: 2, length: 1)))
+        #expect(text == "a,\\\nb")
+        // It renders as a break within one paragraph.
+        let html = SiteRenderer.markdownToHTML("Ann Lee\\\n12 Main St")
+        #expect(html.contains("<p>Ann Lee<br") && html.components(separatedBy: "<p>").count == 2)
+    }
+
     @Test func boldWrapsAndUnwraps() {
         var (text, sel) = run("hello world", F.toggleWrap("hello world", NSRange(location: 6, length: 5), marker: "**"))
         #expect(text == "hello **world**")

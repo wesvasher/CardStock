@@ -337,15 +337,23 @@ struct ComponentsTests {
     @Test func pageLayoutSettings() throws {
         var theme = ThemeSettings()
         #expect(theme.css.contains("--measure: 60rem;") && theme.css.contains("--gutter: 20px;")
-                && theme.css.contains("--bar-width: var(--measure);"), "960 px by default")
+                && theme.css.contains("--header-width: var(--measure);")
+                && theme.css.contains("--footer-width: var(--measure);"), "960 px by default")
+        #expect(theme.css.contains(".site-header { max-width: var(--header-width); }")
+                && theme.css.contains(".site-footer { max-width: var(--footer-width); }"), "older themes get separate widths too")
         theme.contentWidth = 1140.0 / 16
         theme.gutter = 32
-        theme.fullWidthBars = true
+        theme.fullWidthFooter = true
         #expect(theme.css.contains("--measure: 71.25rem;") && theme.css.contains("--gutter: 32px;")
-                && theme.css.contains("--bar-width: none;"))
+                && theme.css.contains("--footer-width: none;") && theme.css.contains("--header-width: var(--measure);"))
+        theme.fullWidthHeader = true
+        #expect(theme.css.contains("--header-width: none;"))
         // Sites that saved a width keep it.
         let old = try JSONDecoder().decode(ThemeSettings.self, from: Data(#"{"contentWidth":40}"#.utf8))
-        #expect(old.contentWidth == 40 && old.gutter == 20 && !old.fullWidthBars)
+        #expect(old.contentWidth == 40 && old.gutter == 20 && !old.fullWidthHeader && !old.fullWidthFooter)
+        // The one switch from before sets both.
+        let both = try JSONDecoder().decode(ThemeSettings.self, from: Data(#"{"fullWidthBars":true}"#.utf8))
+        #expect(both.fullWidthHeader && both.fullWidthFooter)
         #expect(ThemeSettings.popularContentWidths.contains { $0.px == 960 })
     }
 
@@ -360,7 +368,7 @@ struct ComponentsTests {
     @Test func starterStylesheetUsesEveryVariable() throws {
         let url = try #require(Bundle.main.url(forResource: "StarterSite", withExtension: nil))
         let css = try String(contentsOf: url.appending(path: "theme/assets/style.css"), encoding: .utf8)
-        for name in ["gutter", "bar-width", "nav-font", "nav-size", "nav-weight", "nav-link", "nav-hover", "nav-current", "nav-pressed",
+        for name in ["gutter", "header-width", "footer-width", "nav-font", "nav-size", "nav-weight", "nav-link", "nav-hover", "nav-current", "nav-pressed",
                      "nav-icon-dir", "nav-icon", "navbtn-icon", "navbtn-bg", "navbtn-text", "navbtn-border", "navbtn-border-width", "navbtn-radius",
                      "navbtn-alpha", "navbtn-blur", "navbtn-shadow", "navbtn-pad-x", "navbtn-pad-y", "button-radius", "button-pad-x", "button-pad-y", "button-bg", "button-text", "card-radius",
                      "card-padding", "card-border", "card-shadow", "cover-radius", "image-radius", "code-radius",

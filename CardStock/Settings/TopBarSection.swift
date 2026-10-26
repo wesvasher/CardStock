@@ -26,6 +26,12 @@ struct TopBarSection: View {
                           help: "The bar starts tall and shrinks as the page scrolls"),
                 ])
             }
+            Picker("Width", selection: theme(\.fullWidthHeader)) {
+                Text("Match Content").tag(false)
+                Text("Full Width").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .help("Match Content keeps the logo and links within the content width (Configuration → Layout); Full Width spreads them to the window's edges")
 
             if h.mode != .scrolls {
                 LabeledContent("Bar height") {
@@ -464,7 +470,7 @@ private struct HexField: View {
 
 /// One logo image, chosen from Files or the Mac: its address with Change…
 /// and Remove, or a note about what's used without it and Choose….
-private struct LogoFileRow: View {
+struct LogoFileRow: View {
     let title: String
     @Binding var path: String
     let emptyText: String

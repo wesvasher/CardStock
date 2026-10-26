@@ -80,8 +80,16 @@ struct ThemeSettings: Codable, Equatable, Sendable {
     var contentWidth: Double = 60
     /// Space between the content and the window's edges, in pixels.
     var gutter: Double = 20
-    /// The top bar and footer span the whole window instead of the content width.
-    var fullWidthBars = false
+    /// The top bar spans the whole window instead of the content width.
+    /// Configuration → Top Navigation Bar.
+    var fullWidthHeader = false
+    /// The footer spans the whole window instead of the content width.
+    /// Configuration → Footer.
+    var fullWidthFooter = false
+
+    /// Before the top bar and footer had their own settings, one switch
+    /// (`fullWidthBars`) set both; it still reads into each.
+    private enum LegacyKeys: String, CodingKey { case fullWidthBars }
 
     /// Common content widths in pixels, for Configuration → Layout.
     static let popularContentWidths: [(px: Int, name: String)] = [
@@ -286,7 +294,9 @@ struct ThemeSettings: Codable, Equatable, Sendable {
         radius = try c.decodeIfPresent(Double.self, forKey: .radius) ?? d.radius
         contentWidth = try c.decodeIfPresent(Double.self, forKey: .contentWidth) ?? d.contentWidth
         gutter = try c.decodeIfPresent(Double.self, forKey: .gutter) ?? d.gutter
-        fullWidthBars = try c.decodeIfPresent(Bool.self, forKey: .fullWidthBars) ?? d.fullWidthBars
+        let bothBars = try decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(Bool.self, forKey: .fullWidthBars)
+        fullWidthHeader = try c.decodeIfPresent(Bool.self, forKey: .fullWidthHeader) ?? bothBars ?? d.fullWidthHeader
+        fullWidthFooter = try c.decodeIfPresent(Bool.self, forKey: .fullWidthFooter) ?? bothBars ?? d.fullWidthFooter
         customFonts = try c.decodeIfPresent([CustomFont].self, forKey: .customFonts) ?? []
 
         // Settings saved before Components follow the old single radius.
@@ -429,7 +439,11 @@ struct ThemeSettings: Codable, Equatable, Sendable {
         css += "  --radius: \(Self.number(radius))px;\n"
         css += "  --measure: \(Self.number(contentWidth))rem;\n"
         css += "  --gutter: \(Self.number(max(gutter, 0)))px;\n"
-        css += "  --bar-width: \(fullWidthBars ? "none" : "var(--measure)");\n"
+        css += "  --header-width: \(fullWidthHeader ? "none" : "var(--measure)");\n"
+        css += "  --footer-width: \(fullWidthFooter ? "none" : "var(--measure)");\n"
+        // Older themes' style.css sizes both bars with --bar-width;
+        // `barWidthRules` then sizes each one separately.
+        css += "  --bar-width: var(--header-width);\n"
         css += componentVars
         switch appearance {
         case .auto:
@@ -442,8 +456,12 @@ struct ThemeSettings: Codable, Equatable, Sendable {
         case .dark:
             css += "  color-scheme: dark;\n" + Self.vars(dark) + Self.navVars(navDark) + Self.buttonVars(navButton.dark) + "}\n"
         }
-        return css
+        return css + Self.barWidthRules
     }
+
+    /// Sizes the top bar and footer from their own widths, also in themes
+    /// whose style.css only knows --bar-width.
+    static let barWidthRules = ".site-header { max-width: var(--header-width); }\n.site-footer { max-width: var(--footer-width); }\n"
 
     static func shadowValue(_ shadow: Shadow) -> String {
         switch shadow {

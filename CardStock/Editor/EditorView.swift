@@ -384,6 +384,7 @@ private struct FormattingBar: View {
             tool("italic", "Italic (⌘I)", editor.italic)
             tool("strikethrough", "Strikethrough", editor.strikethrough)
             tool("chevron.left.forwardslash.chevron.right", "Code", editor.code)
+            tool("arrow.turn.down.left", "Line break: starts a new line here without starting a new paragraph", editor.lineBreak)
             separator
             tool("link", "Link (⌘K)", editor.link)
             tool("list.bullet", "Bulleted list", { editor.lines(.bullet) })
@@ -403,6 +404,7 @@ private struct FormattingBar: View {
             .menuIndicator(.visible)
             .fixedSize()
             .help("Insert an image at the cursor. You can also drag or paste images into the text.")
+            tool("face.smiling", "Insert an emoji at the cursor", editor.showEmojiPicker)
             Spacer(minLength: 0)
         }
         .buttonStyle(.borderless)

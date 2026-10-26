@@ -7,6 +7,14 @@ import UniformTypeIdentifiers
 final class MarkdownEditorController {
     fileprivate weak var textView: NSTextView?
 
+    /// Opens the Mac's emoji picker at the cursor; the emoji chosen goes
+    /// into the text there (it's plain text in the Markdown).
+    func showEmojiPicker() {
+        guard let textView else { return }
+        textView.window?.makeFirstResponder(textView)
+        NSApp.orderFrontCharacterPalette(textView)
+    }
+
     /// Where the cursor is (or the start of the selection).
     var cursorLocation: Int { textView?.selectedRange().location ?? 0 }
 
@@ -52,6 +60,7 @@ final class MarkdownEditorController {
     func link() { apply { MarkdownFormatting.link($0, $1) } }
     func heading(_ level: Int) { apply { MarkdownFormatting.heading($0, $1, level: level) } }
     func lines(_ style: MarkdownFormatting.LineStyle) { apply { MarkdownFormatting.toggleLines($0, $1, style: style) } }
+    func lineBreak() { apply(MarkdownFormatting.lineBreak) }
     func divider() { insertBlocks(["---"]) }
     func sectionBreak() { insertBlocks([PageLayout.sectionBreak]) }
     func newsletter() { insertBlocks([PageWidget.newsletter.marker]) }

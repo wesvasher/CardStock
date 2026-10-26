@@ -30,15 +30,10 @@ struct LayoutsView: View {
                 LabeledContent("Side padding") {
                     NudgeSlider(value: themeBinding(\.gutter), range: 0...64)
                 }
-                Picker("Top bar and footer", selection: themeBinding(\.fullWidthBars)) {
-                    Text("Match Content").tag(false)
-                    Text("Full Width").tag(true)
-                }
-                .pickerStyle(.segmented)
             } header: {
                 Text("Page")
             } footer: {
-                Text("Content width is the most the top bar, page and footer spread across a wide window; narrower windows use their whole width. Side padding is the space kept at the window's edges. Full Width lets the top bar and footer reach the window's edges while the page stays at the content width.")
+                Text("Content width is the most the top bar, page and footer spread across a wide window; narrower windows use their whole width. Side padding is the space kept at the window's edges. The top bar and footer can each reach the window's edges instead: set their Width in Top Navigation Bar and Footer.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

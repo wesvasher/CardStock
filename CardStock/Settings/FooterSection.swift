@@ -19,6 +19,14 @@ struct FooterSection: View {
                 }
             }
             .toggleStyle(.switch)
+            if config.footer.enabled {
+                Picker("Width", selection: fullWidth) {
+                    Text("Match Content").tag(false)
+                    Text("Full Width").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .help("Match Content keeps the footer within the content width (Configuration → Layout); Full Width spreads it to the window's edges")
+            }
         }
 
         if config.footer.enabled {
@@ -126,6 +134,16 @@ struct FooterSection: View {
     private var defaultName: String {
         let author = config.author.trimmingCharacters(in: .whitespaces)
         return author.isEmpty ? config.title : author
+    }
+
+    /// The footer's width, a theme setting (theme.json) like the top bar's.
+    private var fullWidth: Binding<Bool> {
+        Binding(get: { model.site?.theme?.fullWidthFooter ?? false },
+                set: { value in
+                    var updated = model.site?.theme ?? ThemeSettings()
+                    updated.fullWidthFooter = value
+                    model.updateTheme(updated)
+                })
     }
 
     private func lineNumber(_ keyPath: WritableKeyPath<SiteConfig.Footer.Line, Int>) -> Binding<Double> {

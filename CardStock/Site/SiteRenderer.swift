@@ -641,6 +641,11 @@ struct SiteRenderer: Sendable {
            let head = html.range(of: "</head>", options: .caseInsensitive) {
             html.insert(contentsOf: style, at: head.lowerBound)
         }
+        // The site icon and favicon.
+        if let tags = SiteIcon.headHTML(site.config),
+           let head = html.range(of: "</head>", options: .caseInsensitive) {
+            html.insert(contentsOf: tags, at: head.lowerBound)
+        }
         // Theming settings go last in <head> so they override the theme's CSS.
         guard let theme = site.theme, let head = html.range(of: "</head>", options: .caseInsensitive) else { return html }
         return html.replacingCharacters(in: head.lowerBound..<head.lowerBound,

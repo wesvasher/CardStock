@@ -54,6 +54,8 @@ struct SiteConfig: Codable, Equatable, Sendable {
     var footer = Footer()
     var newsletter = Newsletter()
     var search = Search()
+    /// The home screen icon and favicon (Configuration → Site Details).
+    var icon = Icon()
     /// How pages are addressed. 1: sites from before 0.6 (static pages at
     /// /<slug>/, posts at /posts/<slug>/); `SiteMigration.moveAddresses`
     /// moves them to 2: /pages/<slug>/ and /<collection>/pages/<slug>/.
@@ -75,7 +77,7 @@ struct SiteConfig: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case title, description, author, url, language, nav, header, footer, newsletter, search, tags, addressVersion, folders
+        case title, description, author, url, language, icon, nav, header, footer, newsletter, search, tags, addressVersion, folders
         case storedCollections = "collections"
     }
 
@@ -414,6 +416,7 @@ struct SiteConfig: Codable, Equatable, Sendable {
         footer = try c.decodeIfPresent(Footer.self, forKey: .footer) ?? Footer()
         newsletter = try c.decodeIfPresent(Newsletter.self, forKey: .newsletter) ?? Newsletter()
         search = try c.decodeIfPresent(Search.self, forKey: .search) ?? Search()
+        icon = try c.decodeIfPresent(Icon.self, forKey: .icon) ?? Icon()
         tags = try c.decodeIfPresent(TagSettings.self, forKey: .tags) ?? TagSettings()
         addressVersion = try c.decodeIfPresent(Int.self, forKey: .addressVersion) ?? 1
         folders = try c.decodeIfPresent([Folder].self, forKey: .folders) ?? []

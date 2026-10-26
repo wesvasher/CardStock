@@ -162,6 +162,24 @@ enum MarkdownFormatting {
                     selection: NSRange(location: urlStart, length: ("https://" as NSString).length))
     }
 
+    // MARK: Line breaks
+
+    /// Markdown's line break: a backslash at the end of a line starts a new
+    /// line within the paragraph (a plain Return only becomes a space).
+    static let lineBreakTag = "\\"
+
+    /// Replaces the selection with a line break: `\` and a new line, with
+    /// the cursor at the start of that line. At the end of a line, only
+    /// `\` is added and the line after joins it in the same paragraph.
+    static func lineBreak(_ text: String, _ selection: NSRange) -> Edit {
+        let ns = text as NSString
+        let end = selection.location + selection.length
+        let atLineEnd = end < ns.length && ns.character(at: end) == 10
+        let replacement = atLineEnd ? lineBreakTag : lineBreakTag + "\n"
+        let cursor = selection.location + (replacement as NSString).length + (atLineEnd ? 1 : 0)
+        return Edit(range: selection, replacement: replacement, selection: NSRange(location: cursor, length: 0))
+    }
+
     // MARK: Whole lines: headings, lists, quotes
 
     /// The full lines the selection touches (not counting a line the

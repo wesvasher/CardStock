@@ -37,6 +37,7 @@ enum SiteBuilder {
             try copyContents(of: site.root.appending(path: "static"), to: staging)
             try copyFolder(site.root.appending(path: "theme/assets"), to: staging.appending(path: "assets"))
             try copyFolder(site.root.appending(path: "media"), to: staging.appending(path: "media"))
+            warnings += try SiteIcon.write(site.config, root: site.root, to: staging)
 
             if fm.fileExists(atPath: output.path) {
                 try fm.removeItem(at: output)

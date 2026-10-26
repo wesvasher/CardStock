@@ -24,7 +24,7 @@ The **Page** section at the top of [Layout](cardstock:layouts) applies to every 
 
 - **Content width**: the most the top bar, page and footer spread across a wide window. Pick a common width, such as **960 px** (the default), **640 px** for easy reading or **1140 px** for a wide site, or choose **Custom** and type any width in pixels. Narrower windows, like phones, always use their whole width.
 - **Side padding**: the space kept at the window's edges.
-- **Top bar and footer**: **Match Content** keeps them at the content width; **Full Width** lets them reach the window's edges.
+- **Top bar and footer** each have a **Width** setting of their own, in [Top Navigation Bar](cardstock:top-bar) and [Footer](cardstock:footer): **Match Content** keeps them at the content width; **Full Width** lets them reach the window's edges.
 
 | Layout | What it does | Areas |
 |---|---|---|

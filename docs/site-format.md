@@ -112,6 +112,8 @@ my-site/
 
 Files in `media/` are tagged in `media.json` at the site's root (committed, not published): `{ "files": { "media/files/beach.jpg": { "tags": ["travel"] } } }`. Files without tags and files that no longer exist are left out when it's saved; with no file tags it's removed.
 
+`icon` (optional) is the home screen icon and favicon, edited in Configuration → Site Details: `"icon": { "image": "/media/files/icon.png", "background": "#ffffff", "name": "", "customFavicon": false, "favicon": "" }`. With an `image`, building writes `apple-touch-icon.png` (180 px, filled with `background`), `icon-192.png` and `icon-512.png` (transparent), `icon-maskable-512.png` (the image at 80% on `background`, for Android's shaped icons), `favicon-32.png` and `site.webmanifest` (`name` is the site title, `short_name` is `name` or the title, `background_color` and `theme_color` are `background`) to the root of `public/`. Non-square images are fitted and centered. `customFavicon` true with a `favicon` links that file as the favicon instead (any image type, used as is) and skips `favicon-32.png`. The renderer adds the `<link rel="icon">`, `<link rel="apple-touch-icon">`, `<meta name="apple-mobile-web-app-title">` and `<link rel="manifest">` tags to every page's `<head>`, so older themes get them too.
+
 `folders` (optional) are your own short addresses, edited in Configuration → Folders: `"folders": [{ "name": "subscribe", "page": "subscribe" }]`. Each publishes `/<name>/index.html` with the page whose file name is `page` (`pages/subscribe.md`; a collection's id means its main page), rendered exactly as at its own address, which it keeps (the canonical link points there). A folder whose page is missing, a draft or a link menu isn't published. Names use lowercase letters, numbers and hyphens, and can't be a collection's id or a folder CardStock uses (`pages`, `tags`, `media`, `assets`, `links`, `search`, …). CardStock's own folders are one per collection plus `/pages/`, `/tags/`, `/media/` and `/assets/`.
 
 `tags` (optional): `pages` (default true) publishes `/tags/` and a page per tag; `list` holds tags with a `description` (shown on the tag's page) or made before any page used them: `"tags": { "pages": true, "list": [{ "name": "Design", "description": "Pages about design." }] }`.
@@ -346,7 +348,8 @@ An item (any page) has `title`, `slug`, `url`, `type`, `date` (`2026-10-20`), `d
   "radius": 8,
   "contentWidth": 60,
   "gutter": 20,
-  "fullWidthBars": false,
+  "fullWidthHeader": false,
+  "fullWidthFooter": false,
   "buttonStyle": "outline",
   "buttonRadius": 6,
   "buttonPaddingX": 16,
@@ -373,7 +376,7 @@ An item (any page) has `title`, `slug`, `url`, `type`, `date` (`2026-10-20`), `d
 }
 ```
 
-`appearance` is `auto` (follows the visitor's device), `light` or `dark`. The component settings are pixels except `buttonStyle` (`outline`, `filled`), `cardShadow` (`none`, `soft`, `strong`), `quoteColor` (`line`, `accent`) and the two true/false values. `contentWidth` (rem; 60 = 960 px) is the content container's width for the top bar, page and footer, `gutter` (px) the space at the window's edges, and `fullWidthBars` lets the top bar and footer span the window. `navFont`, `navSize` (px) and `navWeight` (400, 600 or 700) style the top bar's links; an empty `navFont` uses the headings font, and a font named there is loaded like the body and heading fonts. `navLight` and `navDark` color the links (`link`), hovered links (`hover`), the current page's link (`current`) and links being clicked (`pressed`) in each appearance, as `#rrggbb`; empty follows the palette (secondary text, text, text, and the hover color). Corner radii missing from older files follow `radius` as the theme did before (buttons ×0.75, cards ×1.25, covers, code blocks and menus ×1). Fonts are built-in stacks (`system-sans`, `system-serif`, `system-rounded`, `system-mono`), Google Fonts from CardStock's list named in lowercase with hyphens (`lora`, `source-serif-4`), or web fonts added by link, written as `custom:<family>`.
+`appearance` is `auto` (follows the visitor's device), `light` or `dark`. The component settings are pixels except `buttonStyle` (`outline`, `filled`), `cardShadow` (`none`, `soft`, `strong`), `quoteColor` (`line`, `accent`) and the two true/false values. `contentWidth` (rem; 60 = 960 px) is the content container's width for the top bar, page and footer, `gutter` (px) the space at the window's edges, and `fullWidthHeader` and `fullWidthFooter` let the top bar and footer span the window (edited on the Top Navigation Bar and Footer pages; files with the older `fullWidthBars` use it for both). `navFont`, `navSize` (px) and `navWeight` (400, 600 or 700) style the top bar's links; an empty `navFont` uses the headings font, and a font named there is loaded like the body and heading fonts. `navLight` and `navDark` color the links (`link`), hovered links (`hover`), the current page's link (`current`) and links being clicked (`pressed`) in each appearance, as `#rrggbb`; empty follows the palette (secondary text, text, text, and the hover color). Corner radii missing from older files follow `radius` as the theme did before (buttons ×0.75, cards ×1.25, covers, code blocks and menus ×1). Fonts are built-in stacks (`system-sans`, `system-serif`, `system-rounded`, `system-mono`), Google Fonts from CardStock's list named in lowercase with hyphens (`lora`, `source-serif-4`), or web fonts added by link, written as `custom:<family>`.
 
 Web fonts added by link live in `theme/fonts.json`, so they stay in the site's font menus whatever style is in use:
 
@@ -400,7 +403,7 @@ When the file exists, CardStock adds a `<style id="cardstock-theme">` block (and
 | `--h1-size`       | `h1Size` (px)        |
 | `--radius`        | `radius` (px)        |
 | `--gutter`        | `gutter` (px)        |
-| `--bar-width`     | `none` when `fullWidthBars`, else `var(--measure)` |
+| `--header-width`, `--footer-width` | `none` when `fullWidthHeader` / `fullWidthFooter`, else `var(--measure)`. The theme CSS also sets `.site-header` and `.site-footer`'s `max-width` from them, so themes that only use `--bar-width` (still set, to the header's width) get separate widths too |
 | `--measure`       | `contentWidth` (rem) |
 | `--bg`            | `background`         |
 | `--card`          | `surface`            |
