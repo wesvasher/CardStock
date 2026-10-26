@@ -20,6 +20,7 @@ struct StartView: View {
                         StartTile(tile: tile, isLarge: true)
                     }
                 }
+                HowItWorksCard()
                 // Everything else, all the same size.
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 14)], spacing: 14) {
                     ForEach(tiles) { tile in
