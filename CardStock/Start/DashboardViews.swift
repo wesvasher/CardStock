@@ -31,14 +31,17 @@ struct DashboardCard<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // An empty title leaves the heading out.
+            if !title.isEmpty || subtitle != nil {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.headline)
+                if !title.isEmpty { Text(title).font(.headline) }
                 if let subtitle {
                     Text(subtitle)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            }
             }
             content()
         }
@@ -359,11 +362,15 @@ struct HealthCard: View {
         let failing = checks.filter { !$0.passed }
         DashboardCard(title: "Site Health") {
             summary(failing)
-            VStack(spacing: 6) {
-                ForEach(checks) { check in
-                    CheckRow(check: check, onFix: perform)
+            // Scrolls inside the card when it's given a fixed height (Status).
+            ScrollView {
+                VStack(spacing: 6) {
+                    ForEach(checks) { check in
+                        CheckRow(check: check, onFix: perform)
+                    }
                 }
             }
+            .scrollBounceBehavior(.basedOnSize)
         }
     }
 

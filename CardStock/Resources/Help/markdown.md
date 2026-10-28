@@ -51,3 +51,15 @@ Read more [about me](/pages/about/) or see my [latest posts](/blog/).
 ## Images
 
 Don't type image Markdown by hand. Drag images in instead: see [Add images](help:add-images).
+
+## Videos
+
+To show a YouTube or Vimeo video, paste its link on a line of its own:
+
+```
+https://www.youtube.com/watch?v=ZIteqB0Rkoo
+```
+
+Embed code works too: on YouTube, click **Share**, then **Embed**, and paste the `<iframe>` code on its own line. Either way, CardStock shows the video as a player as wide as the page that keeps its shape on phones. Links with a start time (like `?t=90` or `?t=1m30s`) start there.
+
+YouTube won't play videos inside CardStock's preview, so the preview shows the video's picture instead (click it to watch on YouTube). The player works on your published site. Vimeo videos play in the preview too.

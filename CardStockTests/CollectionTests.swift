@@ -215,6 +215,9 @@ struct CollectionTests {
         #expect(ContentCollection.problem(withID: "work", in: site) != nil)
         #expect(ContentCollection.problem(withID: "posts", in: site) != nil)
         #expect(ContentCollection.problem(withID: "about", in: site) != nil)
+        // The About page can become a collection's main page with its own name.
+        let about = try #require(site.items.first { $0.slug == "about" })
+        #expect(ContentCollection.problem(withID: "about", in: site, page: about.id) == nil)
         #expect(ContentCollection.problem(withID: "tags", in: site) != nil)
         #expect(ContentCollection.problem(withID: "My Stuff", in: site) != nil)
         #expect(site.unavailableSlugs.contains("work") && site.unavailableSlugs.contains("videos"))

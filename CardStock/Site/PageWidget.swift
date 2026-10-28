@@ -42,7 +42,7 @@ enum PageWidget: String, CaseIterable, Sendable {
     /// Calls `replace` for each line outside fenced code blocks; a non-nil
     /// result replaces the line. Returns the text with the replacements.
     @discardableResult
-    private static func eachLine(of markdown: String, _ replace: (String) -> String?) -> String {
+    static func eachLine(of markdown: String, _ replace: (String) -> String?) -> String {
         var fence: String?
         let lines = markdown.split(separator: "\n", omittingEmptySubsequences: false).map { line -> String in
             let t = line.trimmingCharacters(in: .whitespaces)

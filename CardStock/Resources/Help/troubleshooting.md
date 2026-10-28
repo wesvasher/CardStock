@@ -5,6 +5,21 @@ summary: Fixes for publishing and preview problems.
 order: 2
 ---
 
+### See what happened: the Activity Log
+
+[Status](cardstock:status) has an **Activity Log** that lists everything that happens in CardStock:
+- your edits to pages, files, settings and styles
+- building and publishing
+- updates from other Macs
+- your website host's build after each publish
+- every error
+
+Filter it to **Edits**, **Publishing** or **Problems**, search it, or turn on **All Sites** to see every site's entries. The buttons at its top right export what's shown as a text file (handy when asking for help) and delete entries.
+
+### I published, but my website didn't change
+
+After CardStock publishes to GitHub, your host (such as Cloudflare) builds the website, which usually takes under a minute. CardStock checks how that build went and lists it in the [Activity Log](cardstock:status). If the build failed, you'll also see a message. Click **View Build** next to the entry to see the host's log. A failed build is often a short outage at the host: publish again, or click **Retry build** on the host's page.
+
 ### "Some theme files are out of date"
 
 Your site was made with an older version of CardStock, so some newer features don't show. Open [Configuration](cardstock:configuration), pick any page below Site Details, and click **Update Theme Files**. The old files go to your Mac's Trash in case you changed them.

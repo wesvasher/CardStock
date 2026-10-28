@@ -538,7 +538,7 @@ struct ThemeSettings: Codable, Equatable, Sendable {
             .joined()
     }
 
-    private static func sanitizeColor(_ s: String) -> String {
+    static func sanitizeColor(_ s: String) -> String {
         let ok = s.hasPrefix("#") && s.dropFirst().allSatisfy(\.isHexDigit) && [4, 7, 9].contains(s.count)
         return ok ? s : "inherit"
     }

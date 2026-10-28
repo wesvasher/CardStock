@@ -636,6 +636,17 @@ struct SiteRenderer: Sendable {
            let head = html.range(of: "</head>", options: .caseInsensitive) {
             html.insert(contentsOf: Self.collectionStyle, at: head.lowerBound)
         }
+        // The top bar's background, blur and line, and the phone menu
+        // button, when they differ from the theme's.
+        let appearance = site.theme?.appearance ?? .auto
+        for style in [Self.headerBarStyle(site.config.header, appearance: appearance),
+                      Self.menuButtonStyle(site.config.header, appearance: appearance)].compactMap({ $0 }) {
+            if let head = html.range(of: "</head>", options: .caseInsensitive) {
+                html.insert(contentsOf: style, at: head.lowerBound)
+            }
+        }
+        html = Self.insertMenuIcon(site.config.header, into: html)
+        if site.config.header.mobileMenu { html = Self.insertCloseButtonScript(into: html) }
         // The footer's line, when its settings differ from the theme's.
         if let style = Self.footerLineStyle(site.config.footer),
            let head = html.range(of: "</head>", options: .caseInsensitive) {
@@ -756,7 +767,7 @@ struct SiteRenderer: Sendable {
     }
 
     static func markdownToHTML(_ markdown: String) -> String {
-        HTMLFormatter.format(SiteConfig.Newsletter.markPlaces(in: markdown))
+        HTMLFormatter.format(SiteConfig.Newsletter.markPlaces(in: VideoEmbed.markPlaces(in: markdown)))
     }
 
     private static let isoDate: DateFormatter = {
@@ -974,6 +985,61 @@ extension SiteRenderer {
         return "<style>" + css + " }</style>\n"
     }
 
+    /// CSS for the top bar's background, blur and bottom line, or nil when
+    /// they're the theme's own. `.site-bar` is the full-width strip behind
+    /// the bar; `.is-fixed` marks bars that stay at the top.
+    static func headerBarStyle(_ header: SiteConfig.Header, appearance: ThemeSettings.Appearance) -> String? {
+        let bar = header.bar
+        guard !bar.isDefault else { return nil }
+        let fixed = header.mode != .scrolls
+        var css = ""
+        func background(_ hex: String) -> String {
+            let color = hex.trimmingCharacters(in: .whitespaces).isEmpty ? "var(--bg)" : ThemeSettings.sanitizeColor(hex)
+            let percent = Int(min(max(bar.opacity, 0), 100).rounded())
+            return percent >= 100 ? color : "color-mix(in srgb, \(color) \(percent)%, transparent)"
+        }
+        switch bar.background {
+        case .automatic:
+            break
+        case .none:
+            css += ".site-bar, .site-bar.is-fixed { background: transparent; }\n"
+        case .color:
+            let light = ".site-bar, .site-bar.is-fixed { background: \(background(bar.light)); }\n"
+            let dark = ".site-bar, .site-bar.is-fixed { background: \(background(bar.dark)); }\n"
+            switch appearance {
+            case .light: css += light
+            case .dark: css += dark
+            case .auto: css += light + "@media (prefers-color-scheme: dark) {\n  " + dark + "}\n"
+            }
+        }
+        if fixed && bar.blur != SiteConfig.Header.Bar.themeBlur {
+            let blur = Int(min(max(bar.blur, 0), 60).rounded())
+            let filter = blur == 0 ? "none" : "saturate(180%) blur(\(blur)px)"
+            css += ".site-bar.is-fixed { -webkit-backdrop-filter: \(filter); backdrop-filter: \(filter); }\n"
+        }
+        let shows = bar.showsLine(header.mode)
+        if !shows && bar.line != nil {
+            css += ".site-bar, .site-bar.is-fixed { border-bottom: none; }\n"
+        } else if shows && (bar.line != nil || bar.hasCustomLine) {
+            let width = SiteRenderer.ratio(min(max(bar.lineWidth, 1), 12))
+            func line(_ hex: String) -> String {
+                let color = hex.trimmingCharacters(in: .whitespaces).isEmpty
+                    ? "color-mix(in srgb, var(--line) 70%, transparent)" : ThemeSettings.sanitizeColor(hex)
+                return ".site-bar, .site-bar.is-fixed { border-bottom: \(width)px \(bar.lineStyle.rawValue) \(color); }\n"
+            }
+            switch appearance {
+            case .light: css += line(bar.lineLight)
+            case .dark: css += line(bar.lineDark)
+            case .auto:
+                css += line(bar.lineLight)
+                if bar.lineDark != bar.lineLight {
+                    css += "@media (prefers-color-scheme: dark) {\n  " + line(bar.lineDark) + "}\n"
+                }
+            }
+        }
+        return css.isEmpty ? nil : "<style>\n" + css + "</style>\n"
+    }
+
     /// A unitless CSS number with up to 4 decimals, e.g. 0.5 or 0.6667.
     static func ratio(_ d: Double) -> String {
         var text = String(format: "%.4f", d)
@@ -1185,6 +1251,29 @@ extension SiteRenderer {
         return id
     }
 
+    /// Where a YouTube link starts, in seconds: `t=90`, `t=1m30s` or
+    /// `start=90`. nil from the beginning.
+    static func youTubeStart(_ link: String) -> Int? {
+        guard let items = URLComponents(string: link.trimmingCharacters(in: .whitespaces))?.queryItems,
+              let value = items.first(where: { $0.name == "start" || $0.name == "t" })?.value?.lowercased(),
+              !value.isEmpty else { return nil }
+        if let seconds = Int(value) { return seconds > 0 ? seconds : nil }
+        var total = 0, number = ""
+        for c in value {
+            if c.isNumber { number.append(c); continue }
+            guard let n = Int(number) else { return nil }
+            switch c {
+            case "h": total += n * 3600
+            case "m": total += n * 60
+            case "s": total += n
+            default: return nil
+            }
+            number = ""
+        }
+        if let n = Int(number) { total += n }
+        return total > 0 ? total : nil
+    }
+
     /// A video link as a player: YouTube and Vimeo links become their
     /// players, video files (.mp4, .webm, .mov, .m4v) a `<video>`, and
     /// anything else a plain link. Empty for no link.
@@ -1194,7 +1283,10 @@ extension SiteRenderer {
         let frame = { (src: String) in
             #"<div class="video-embed"><iframe src="\#(escapeHTML(src))" title="Video" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>"#
         }
-        if let id = youTubeID(link) { return frame("https://www.youtube-nocookie.com/embed/\(id)") }
+        if let id = youTubeID(link) {
+            let start = youTubeStart(link).map { "?start=\($0)" } ?? ""
+            return frame("https://www.youtube-nocookie.com/embed/\(id)\(start)")
+        }
         if let url = URL(string: link), url.host()?.lowercased().hasSuffix("vimeo.com") == true,
            let id = url.path().split(separator: "/").last(where: { $0.allSatisfy(\.isNumber) }) {
             return frame("https://player.vimeo.com/video/\(id)")

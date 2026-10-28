@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A full-width card on the Start screen showing how a CardStock site travels: written on
+/// A full-width card at the top of Status showing how a CardStock site travels: written on
 /// this Mac, kept on GitHub (so any Mac with CardStock can work on it), published by
 /// Cloudflare Pages, and served at your own domain. Steps that are set up for this site
 /// say so.
@@ -8,8 +8,8 @@ struct HowItWorksCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        DashboardCard(title: "How CardStock Works",
-                      subtitle: "Your website goes from your Mac to the world, with GitHub keeping every version safe in between.") {
+        // No heading: the diagram explains itself at the top of Status.
+        DashboardCard(title: "") {
             // Left to right when there's room; top to bottom otherwise.
             ViewThatFits(in: .horizontal) {
                 wide
@@ -26,7 +26,7 @@ struct HowItWorksCard: View {
     // MARK: - Steps
 
     private var thisMac: FlowNode {
-        FlowNode(icon: "laptopcomputer", color: .blue, title: "Your Mac",
+        FlowNode(icon: "pencil", color: .blue, title: "Your Mac",
                  detail: "Your site's files live in a folder here. Write and edit them in CardStock, even offline.",
                  status: .done("Editing now"))
     }
@@ -38,13 +38,13 @@ struct HowItWorksCard: View {
     }
 
     private var github: FlowNode {
-        FlowNode(icon: "arrow.triangle.branch", color: .indigo, title: "GitHub",
+        FlowNode(icon: "externaldrive.fill.badge.icloud", color: .indigo, title: "GitHub",
                  detail: "The source of truth. Every publish is saved here, so every computer stays in step.",
                  status: model.project.github.map { .done($0.repo) } ?? .todo("Not linked yet"))
     }
 
     private var cloudflare: FlowNode {
-        FlowNode(icon: "cloud.fill", color: .orange, title: "Cloudflare Pages",
+        FlowNode(icon: "macwindow", color: .orange, title: "Cloudflare Pages",
                  detail: "Picks up each change on GitHub and puts your site online within a minute.",
                  status: model.websiteURL == nil ? .todo("Not set up yet") : .done("Online"))
     }
@@ -91,7 +91,7 @@ struct HowItWorksCard: View {
                 anywhere
             }
             .fixedSize(horizontal: false, vertical: true)
-            FlowConnector(style: .down, label: "Sync").frame(height: 40)
+            FlowConnector(style: .downAndUp, label: "Sync").frame(height: 40)
             github
             FlowConnector(style: .down, label: "Deploy").frame(height: 40)
             cloudflare
@@ -155,13 +155,20 @@ private struct FlowNode: View {
 /// travels (unless Reduce Motion is on).
 private struct FlowConnector: View {
     enum Style {
-        /// From two stacked stops on the left into one on the right, both ways (syncing).
+        /// From two stacked stops on the left into one on the right, with a
+        /// second line from each flowing back (syncing).
         case merge
         /// Left to right.
         case across
         /// Top to bottom (the narrow layout).
         case down
+        /// Down and back up side by side (syncing, in the narrow layout).
+        case downAndUp
     }
+
+    /// Where the merge's lines meet each side: each computer's outgoing and
+    /// returning line sit this far apart.
+    nonisolated static let laneGap: CGFloat = 7
 
     let style: Style
     let label: String
@@ -179,7 +186,7 @@ private struct FlowConnector: View {
                 .padding(.horizontal, 5)
                 .padding(.vertical, 1)
                 .background(.background, in: Capsule())
-                .offset(x: style == .down ? 34 : 0, y: style == .down ? 0 : -14)
+                .offset(x: isVertical ? 34 : 0, y: isVertical ? 0 : -14)
         }
         .onAppear {
             guard !reduceMotion else { return }
@@ -187,15 +194,22 @@ private struct FlowConnector: View {
         }
     }
 
+    private var isVertical: Bool { style == .down || style == .downAndUp }
+
     private var arrowheads: some View {
         GeometryReader { geometry in
             let size = geometry.size
             switch style {
             case .merge:
-                // Into GitHub, and back out to both computers.
-                arrow("chevron.right").position(x: size.width - 4, y: size.height / 2)
-                arrow("chevron.left").position(x: 4, y: size.height * 0.25)
-                arrow("chevron.left").position(x: 4, y: size.height * 0.75)
+                // Into GitHub on the outer lines, back to each computer on the inner ones.
+                let g = Self.laneGap
+                arrow("chevron.right").position(x: size.width - 4, y: size.height / 2 - 3 * g)
+                arrow("chevron.right").position(x: size.width - 4, y: size.height / 2 + 3 * g)
+                arrow("chevron.left").position(x: 4, y: size.height * 0.25 + g)
+                arrow("chevron.left").position(x: 4, y: size.height * 0.75 - g)
+            case .downAndUp:
+                arrow("chevron.down").position(x: size.width / 2 - 8, y: size.height - 4)
+                arrow("chevron.up").position(x: size.width / 2 + 8, y: 4)
             case .across:
                 arrow("chevron.right").position(x: size.width - 4, y: size.height / 2)
             case .down:
@@ -206,7 +220,7 @@ private struct FlowConnector: View {
 
     private func arrow(_ symbol: String) -> some View {
         Image(systemName: symbol)
-            .font(.system(size: 10, weight: .bold))
+            .font(.system(size: style == .merge || style == .downAndUp ? 8 : 10, weight: .bold))
             .foregroundStyle(.secondary)
     }
 }
@@ -228,13 +242,24 @@ private struct DashedPath: Shape {
         let inset: CGFloat = 6
         switch style {
         case .merge:
-            let end = CGPoint(x: rect.maxX - inset, y: rect.midY)
-            for y in [rect.height * 0.25, rect.height * 0.75] {
-                let start = CGPoint(x: rect.minX + inset, y: y)
-                line.move(to: start)
-                line.addCurve(to: end, control1: CGPoint(x: rect.midX, y: y),
-                              control2: CGPoint(x: rect.midX, y: rect.midY))
+            // Each computer has an outgoing line (outer) and a returning one
+            // (inner), so the lines never cross. The returning line is drawn
+            // from GitHub's side so its dashes flow back.
+            let g = FlowConnector.laneGap
+            func curve(from a: CGPoint, to b: CGPoint) {
+                line.move(to: a)
+                line.addCurve(to: b, control1: CGPoint(x: rect.midX, y: a.y), control2: CGPoint(x: rect.midX, y: b.y))
             }
+            let left = rect.minX + inset, right = rect.maxX - inset
+            for (y, side) in [(rect.height * 0.25, -1.0), (rect.height * 0.75, 1.0)] {
+                curve(from: CGPoint(x: left, y: y + side * g), to: CGPoint(x: right, y: rect.midY + side * 3 * g))
+                curve(from: CGPoint(x: right, y: rect.midY + side * g), to: CGPoint(x: left, y: y - side * g))
+            }
+        case .downAndUp:
+            line.move(to: CGPoint(x: rect.midX - 8, y: rect.minY + inset))
+            line.addLine(to: CGPoint(x: rect.midX - 8, y: rect.maxY - inset))
+            line.move(to: CGPoint(x: rect.midX + 8, y: rect.maxY - inset))
+            line.addLine(to: CGPoint(x: rect.midX + 8, y: rect.minY + inset))
         case .across:
             line.move(to: CGPoint(x: rect.minX + inset, y: rect.midY))
             line.addLine(to: CGPoint(x: rect.maxX - inset, y: rect.midY))

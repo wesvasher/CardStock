@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Configuration → Top Navigation Bar: how the bar at the top of every page
@@ -9,6 +10,7 @@ struct TopBarSection: View {
 
     private typealias Mode = SiteConfig.Header.Mode
     private typealias Position = SiteConfig.Header.Position
+    private typealias BarBackground = SiteConfig.Header.Bar.Background
 
     private var header: Binding<SiteConfig.Header> { $config.header }
     private var h: SiteConfig.Header { config.header }
@@ -41,6 +43,74 @@ struct TopBarSection: View {
             if h.mode == .shrinking {
                 LabeledContent("Height after scrolling") {
                     NudgeSlider(value: number(\.compactHeight), range: 32...120)
+                }
+            }
+
+            Toggle(isOn: Binding(get: { h.bar.showsLine(h.mode) }, set: { config.header.bar.line = $0 })) {
+                Text("Line under the bar")
+            }
+            .help("A line along the bottom of the bar")
+            // Kept while the line is off, for when it's turned back on.
+            if h.bar.showsLine(h.mode) {
+                let palettes = model.currentTheme
+                LabeledContent("Line color") {
+                    HStack(spacing: 14) {
+                        if palettes.appearance != .dark {
+                            barColorCell(palettes.appearance == .auto ? "Light" : nil, \.bar.lineLight,
+                                         shown: palettes.light.line, resetHelp: "Use the site's line color")
+                        }
+                        if palettes.appearance != .light {
+                            barColorCell(palettes.appearance == .auto ? "Dark" : nil, \.bar.lineDark,
+                                         shown: palettes.dark.line, resetHelp: "Use the site's line color")
+                        }
+                    }
+                }
+                LabeledContent("Line thickness") {
+                    NudgeSlider(value: header.bar.lineWidth, range: 1...8)
+                }
+                Picker("Line style", selection: header.bar.lineStyle) {
+                    Text("Solid").tag(SiteConfig.Header.Bar.LineStyle.solid)
+                    Text("Dashed").tag(SiteConfig.Header.Bar.LineStyle.dashed)
+                    Text("Dotted").tag(SiteConfig.Header.Bar.LineStyle.dotted)
+                }
+                .pickerStyle(.segmented)
+            }
+            Picker("Background", selection: header.bar.background) {
+                Text("Page Color").tag(BarBackground.automatic)
+                Text("Custom Color").tag(BarBackground.color)
+                Text("None").tag(BarBackground.none)
+            }
+            .pickerStyle(.segmented)
+            .help("Page Color is the theme's: on a bar that stays at the top, the page color, slightly see-through. None lets the page show behind the bar.")
+            if h.bar.background == .color {
+                let palettes = model.currentTheme
+                LabeledContent("Color") {
+                    HStack(spacing: 14) {
+                        if palettes.appearance != .dark {
+                            barColorCell(palettes.appearance == .auto ? "Light" : nil, \.bar.light, shown: palettes.light.background)
+                        }
+                        if palettes.appearance != .light {
+                            barColorCell(palettes.appearance == .auto ? "Dark" : nil, \.bar.dark, shown: palettes.dark.background)
+                        }
+                    }
+                }
+                LabeledContent("Opacity") {
+                    NudgeSlider(value: header.bar.opacity, range: 0...100, step: 5, unit: "%")
+                }
+            }
+            if h.mobileMenu {
+                menuButtonRows
+            }
+            if h.mode != .scrolls {
+                LabeledContent {
+                    NudgeSlider(value: header.bar.blur, range: 0...40)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Blur")
+                        Text("Of the page behind the bar. 0 is no blur.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         } header: {
@@ -311,6 +381,88 @@ struct TopBarSection: View {
             .opacity(isSet ? 1 : 0)
             .disabled(!isSet)
         }
+    }
+
+    /// The button that opens the links on phones: icon, color and size.
+    @ViewBuilder
+    private var menuButtonRows: some View {
+        let palettes = model.currentTheme
+        Picker(selection: header.menuButton.icon) {
+            ForEach(SiteConfig.Header.MenuButton.Icon.allCases) { icon in
+                Image(nsImage: Self.menuIconImage(icon))
+                    .help(icon.name)
+                    .tag(icon)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Menu button")
+                Text("On phones, opens the links.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .pickerStyle(.segmented)
+        LabeledContent("Menu button color") {
+            HStack(spacing: 14) {
+                if palettes.appearance != .dark {
+                    barColorCell(palettes.appearance == .auto ? "Light" : nil, \.menuButton.light,
+                                 shown: Self.linkColor(palettes.navLight, palettes.light), resetHelp: "Use the link color")
+                }
+                if palettes.appearance != .light {
+                    barColorCell(palettes.appearance == .auto ? "Dark" : nil, \.menuButton.dark,
+                                 shown: Self.linkColor(palettes.navDark, palettes.dark), resetHelp: "Use the link color")
+                }
+            }
+        }
+        LabeledContent("Menu button size") {
+            NudgeSlider(value: header.menuButton.size, range: 16...40)
+        }
+    }
+
+    /// The top bar's link color: its own, or the palette's secondary text.
+    private static func linkColor(_ nav: ThemeSettings.NavColors, _ palette: ThemeSettings.Palette) -> String {
+        nav.link.isEmpty ? palette.muted : nav.link
+    }
+
+    /// A menu icon drawn from the same SVG the site uses.
+    private static func menuIconImage(_ icon: SiteConfig.Header.MenuButton.Icon) -> NSImage {
+        let svg = icon.svg.replacingOccurrences(of: "<svg ", with: #"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" "#)
+            .replacingOccurrences(of: "currentColor", with: "black")
+        let image = NSImage(data: Data(svg.utf8)) ?? NSImage()
+        image.size = NSSize(width: 16, height: 16)
+        image.isTemplate = true
+        image.accessibilityDescription = icon.name
+        return image
+    }
+
+    /// One of the bar's own colors for one appearance: swatch, hex field,
+    /// and ↺ to go back to the site's color.
+    private func barColorCell(_ title: String?, _ value: WritableKeyPath<SiteConfig.Header, String>,
+                              shown fallback: String, resetHelp: String = "Use the page color") -> some View {
+        let stored = h[keyPath: value]
+        let shown = stored.isEmpty ? fallback : stored
+        return HStack(spacing: 3) {
+            if let title {
+                Text(title).font(.caption).foregroundStyle(.secondary)
+            }
+            ColorPicker(title ?? "Color", selection: Binding(
+                get: { Color(hex: shown) ?? .gray },
+                set: { config.header[keyPath: value] = $0.hexString }),
+                        supportsOpacity: false)
+                .labelsHidden()
+                .help("Click to pick a color")
+            HexField(value: stored, placeholder: fallback) { config.header[keyPath: value] = $0 }
+            Button {
+                config.header[keyPath: value] = ""
+            } label: {
+                Image(systemName: "arrow.counterclockwise").font(.caption)
+            }
+            .buttonStyle(.borderless)
+            .help(resetHelp)
+            .opacity(stored.isEmpty ? 0 : 1)
+            .disabled(stored.isEmpty)
+        }
+        .controlSize(.small)
     }
 
     /// A color inside one of the theme's color groups, as a writable path.

@@ -234,6 +234,73 @@ struct SiteConfig: Codable, Equatable, Sendable {
         /// On phones, the links fold into a menu button that opens them in a
         /// full-screen overlay.
         var mobileMenu = true
+        /// The bar's background, blur and bottom line.
+        var bar = Bar()
+        /// The phone menu button's icon, color and size.
+        var menuButton = MenuButton()
+
+        /// How the bar itself looks. The defaults are the theme's own: the
+        /// page color at 72 % with a 20 px blur and a line under bars that
+        /// stay at the top; nothing for a bar that scrolls away.
+        struct Bar: Codable, Equatable, Sendable {
+            enum Background: String, Codable, CaseIterable, Sendable {
+                /// The theme's: see-through page color on bars that stay at the top.
+                case automatic
+                /// `light`/`dark` at `opacity`.
+                case color
+                /// Transparent.
+                case none
+            }
+
+            /// nil follows the style (a line under bars that stay at the top).
+            var line: Bool?
+            var background = Background.automatic
+            /// `#rrggbb` for light and dark appearance. Empty uses the page color.
+            var light = ""
+            var dark = ""
+            /// The custom color's opacity, 0–100 %.
+            var opacity: Double = 100
+            /// Blur of the page behind a bar that stays at the top, in pixels.
+            var blur: Double = 20
+            /// The line's look, kept while the line is off. Colors are
+            /// `#rrggbb` per appearance; empty is the theme's line color.
+            var lineLight = ""
+            var lineDark = ""
+            var lineWidth: Double = 1
+            var lineStyle = LineStyle.solid
+
+            enum LineStyle: String, Codable, CaseIterable, Sendable {
+                case solid, dashed, dotted
+            }
+
+            /// The line's color, thickness or style differ from the theme's.
+            var hasCustomLine: Bool {
+                !lineLight.isEmpty || !lineDark.isEmpty || lineWidth != 1 || lineStyle != .solid
+            }
+
+            static let themeBlur: Double = 20
+            var isDefault: Bool { self == Bar() }
+
+            /// Whether the line shows for a bar in `mode`.
+            func showsLine(_ mode: Mode) -> Bool { line ?? (mode != .scrolls) }
+
+            init() {}
+
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                let d = Bar()
+                line = try c.decodeIfPresent(Bool.self, forKey: .line)
+                background = (try? c.decodeIfPresent(Background.self, forKey: .background)) ?? d.background
+                light = try c.decodeIfPresent(String.self, forKey: .light) ?? ""
+                dark = try c.decodeIfPresent(String.self, forKey: .dark) ?? ""
+                opacity = try c.decodeIfPresent(Double.self, forKey: .opacity) ?? d.opacity
+                blur = try c.decodeIfPresent(Double.self, forKey: .blur) ?? d.blur
+                lineLight = try c.decodeIfPresent(String.self, forKey: .lineLight) ?? ""
+                lineDark = try c.decodeIfPresent(String.self, forKey: .lineDark) ?? ""
+                lineWidth = try c.decodeIfPresent(Double.self, forKey: .lineWidth) ?? d.lineWidth
+                lineStyle = (try? c.decodeIfPresent(LineStyle.self, forKey: .lineStyle)) ?? d.lineStyle
+            }
+        }
 
         init() {}
 
@@ -261,6 +328,8 @@ struct SiteConfig: Codable, Equatable, Sendable {
             centerLinks = try c.decodeIfPresent([NavLink].self, forKey: .centerLinks) ?? []
             showRightLinks = try c.decodeIfPresent(Bool.self, forKey: .showRightLinks) ?? d.showRightLinks
             mobileMenu = try c.decodeIfPresent(Bool.self, forKey: .mobileMenu) ?? d.mobileMenu
+            bar = (try? c.decodeIfPresent(Bar.self, forKey: .bar)) ?? d.bar
+            menuButton = (try? c.decodeIfPresent(MenuButton.self, forKey: .menuButton)) ?? d.menuButton
         }
 
         var hasLogo: Bool { !logo.trimmingCharacters(in: .whitespaces).isEmpty }

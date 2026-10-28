@@ -69,6 +69,11 @@ struct PreviewView: NSViewRepresentable {
                 }
                 return .allow
             }
+            // Embedded players and forms (Vimeo, mailing list services) load
+            // in their frames.
+            if let frame = action.targetFrame, !frame.isMainFrame, url.scheme == "https" || url.scheme == "about" {
+                return .allow
+            }
             // Links leaving the site open in the default browser.
             if action.navigationType == .linkActivated {
                 NSWorkspace.shared.open(url)
@@ -119,7 +124,7 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
                 let mime = path.hasSuffix(".xml") ? "application/xml"
                     : path.hasSuffix(".json") ? "application/json; charset=utf-8"
                     : "text/html; charset=utf-8"
-                return (Data(html.utf8), mime, 200)
+                return (Data(VideoEmbed.previewPlaceholders(in: html).utf8), mime, 200)
             }
             if let file = fileResponse(root.appending(path: "static"), path) { return file }
             let notFound = renderer.render(path: "/404.html") ?? "<h1>Not found</h1>"

@@ -270,7 +270,9 @@ struct ContentCollection: Codable, Equatable, Sendable, Identifiable {
     ]
 
     /// Why `id` can't be a new collection's id in `site`, or nil when it can.
-    static func problem(withID id: String, in site: Site) -> String? {
+    /// `page`, a page becoming the collection's main page, may already have
+    /// the name.
+    static func problem(withID id: String, in site: Site, page: URL? = nil) -> String? {
         if id.isEmpty { return "Type an address." }
         if id != Site.slugify(id) { return "Use lowercase letters, numbers and hyphens." }
         if reservedIDs.contains(id) || id.hasSuffix("-category") || id.hasPrefix("_") {
@@ -282,8 +284,8 @@ struct ContentCollection: Codable, Equatable, Sendable, Identifiable {
         if site.config.folders.contains(where: { $0.name == id }) {
             return "/\(id)/ is one of your folders (Configuration → Folders)."
         }
-        if let page = site.items.first(where: { $0.slug == id }) {
-            return "The page “\(page.title)” is already named \(id)."
+        if let other = site.items.first(where: { $0.slug == id && $0.id != page }) {
+            return "The page “\(other.title)” is already named \(id)."
         }
         return nil
     }

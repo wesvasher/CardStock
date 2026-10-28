@@ -296,15 +296,28 @@ private struct CollectionSettings: View {
 }
 
 /// Makes a collection: pick a starting point, name it, and choose its address.
+/// Given a page (from the page editor's Type menu), that page becomes the
+/// collection's main page, and the name and address start from it.
 struct AddCollectionSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    var page: ContentItem?
     @State private var preset = ContentCollection.Preset.portfolio
     @State private var name = "Portfolio"
     @State private var itemName = "Project"
     @State private var itemsName = "Projects"
     @State private var address = ""
     @State private var addressEdited = false
+
+    init(page: ContentItem? = nil) {
+        self.page = page
+        if let page {
+            let title = page.title.trimmingCharacters(in: .whitespaces)
+            if !title.isEmpty { _name = State(initialValue: title) }
+            _address = State(initialValue: page.slug)
+            _addressEdited = State(initialValue: true)
+        }
+    }
 
     private var site: Site? { model.site }
     private var id: String { addressEdited ? address : suggestedAddress }
@@ -315,7 +328,7 @@ struct AddCollectionSheet: View {
         let base = Site.slugify(name)
         var candidate = base
         var n = 2
-        while ContentCollection.problem(withID: candidate, in: site) != nil && n < 50 {
+        while ContentCollection.problem(withID: candidate, in: site, page: page?.id) != nil && n < 50 {
             candidate = "\(base)-\(n)"
             n += 1
         }
@@ -325,7 +338,7 @@ struct AddCollectionSheet: View {
     private var problem: String? {
         guard let site else { return "Open a site first." }
         if name.trimmingCharacters(in: .whitespaces).isEmpty { return "Type a name." }
-        return ContentCollection.problem(withID: id, in: site)
+        return ContentCollection.problem(withID: id, in: site, page: page?.id)
     }
 
     var body: some View {
@@ -338,6 +351,12 @@ struct AddCollectionSheet: View {
             Text(preset.summary)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if let page {
+                Label("“\(page.title)” becomes this collection's main page, which lists its \(itemsName.isEmpty ? "items" : itemsName.lowercased()).",
+                      systemImage: "list.bullet.rectangle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Form {
                 TextField("Name", text: $name)
                 TextField("One item", text: $itemName)
@@ -373,7 +392,8 @@ struct AddCollectionSheet: View {
         .frame(width: 520)
         .onChange(of: preset) { _, new in
             let names = ContentCollection(preset: new, id: "x")
-            (name, itemName, itemsName) = (new == .custom ? "" : names.name, names.itemName, names.itemsName)
+            (itemName, itemsName) = (names.itemName, names.itemsName)
+            if page == nil { name = new == .custom ? "" : names.name }
         }
     }
 
@@ -384,7 +404,11 @@ struct AddCollectionSheet: View {
         let many = itemsName.trimmingCharacters(in: .whitespaces)
         if !one.isEmpty { collection.itemName = one }
         if !many.isEmpty { collection.itemsName = many }
-        model.addCollection(collection)
+        if let page {
+            model.addCollection(collection, mainPage: page.id)
+        } else {
+            model.addCollection(collection)
+        }
         dismiss()
     }
 }

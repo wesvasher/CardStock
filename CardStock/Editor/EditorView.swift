@@ -8,6 +8,7 @@ struct EditorView: View {
 
     @State private var editor = MarkdownEditorController()
     @State private var pendingImages: PendingImages?
+    @State private var showNewCollection = false
     @State private var showFilePicker = false
     @State private var confirmDelete = false
     /// The Page Settings accordion; closed whenever a page opens, so the
@@ -29,6 +30,7 @@ struct EditorView: View {
                 model.showToast("Inserted \(file.name).")
             }
         }
+        .sheet(isPresented: $showNewCollection) { AddCollectionSheet(page: current) }
         .sheet(item: $pendingImages) { pending in
             InsertImageSheet(pending: pending, item: current) { blocks, location in
                 editor.insertBlocks(blocks, at: location)
@@ -304,6 +306,10 @@ struct EditorView: View {
         Binding(
             get: { current.kind },
             set: { newValue in
+                if newValue == PageKindOptions.newCollection {
+                    showNewCollection = true
+                    return
+                }
                 var updated = current
                 updated.kind = newValue
                 if newValue.isItem, config.collection(for: newValue)?.dated == true, updated.date.isEmpty {

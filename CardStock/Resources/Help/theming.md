@@ -33,6 +33,16 @@ The bar at the top of every page, with your logo or site title and the menu. Cho
 - **Fixed**: the bar stays at the top of the window at one height, and the page scrolls behind it with a soft blur.
 - **Shrinks on Scroll**: the bar starts tall with a big logo. As the page scrolls, it shrinks smoothly to **Height after scrolling**, and the logo shrinks to **Compact logo height**. Add a **Compact logo**, such as just an icon, and the big logo fades into it as the bar shrinks.
 
+### The bar's background, line and blur
+
+- **Line under the bar** turns the thin line along the bottom of the bar on or off. It starts on for bars that stay at the top and off for one that scrolls away. While it's on, set its **Line color** (one for dark mode too, when your site has both; ↺ goes back to the site's line color), **Line thickness** and **Line style** (solid, dashed or dotted). Turning the line off keeps these for when you turn it back on.
+- **Background**:
+  - **Page Color** is the standard look. A bar that stays at the top uses the page color, slightly see-through.
+  - **Custom Color** lets you pick your own color, a separate one for dark mode when your site has both, and its **Opacity**. Lower the opacity to let the page show through.
+  - **None** has no background, so the page shows behind the bar.
+- **Menu button** (when the links fold into a menu on phones) picks the button's icon: three lines, two lines, staggered lines, dots, vertical dots or a grid. Set its **color** (one for dark mode too, when your site has both; ↺ goes back to the link color) and **size**.
+- **Blur** (for bars that stay at the top) softens the page as it scrolls behind the bar. Set it to 0 for no blur.
+
 ### Logo
 
 1. Under **Logo**, next to **Image**, click **Choose Image…**. Pick an image from your site's Files, or click **Choose from Mac…** to copy one in.
@@ -60,7 +70,7 @@ Below each link, **Icon** adds an icon from CardStock's set (search, cart, email
 
 The logo goes before the links in its position, or after them on the right. Each page's address is shown under its title in [Pages](cardstock:pages).
 
-**Phones**: on phones and other narrow screens (up to 600 pixels wide), the links fold into a menu button (☰) at the right of the bar. Tapping it shows every link, from all three groups, over the whole page, with buttons and icons as you set them; tapping a link or ✕ closes it. Turn off **Fold links into a menu on phones** to keep the links in the bar instead. To try it, pick a phone in the preview's device menu.
+**Phones**: on phones and other narrow screens (up to 600 pixels wide), the links fold into a menu button (☰) at the right of the bar. Tapping it shows every link, from all three groups, over the whole page, with buttons and icons as you set them; tapping a link or ✕ closes it. The ✕ appears right where the menu button was, in the same color and size. Turn off **Fold links into a menu on phones** to keep the links in the bar instead. To try it, pick a phone in the preview's device menu.
 
 **Link Style**, below the groups, sets the links' **Font** (the headings font unless you pick another), **Size** and **Weight** (Regular, Semibold or Bold). It applies to all three groups. Fonts added on the Fonts page are in the menu too.
 

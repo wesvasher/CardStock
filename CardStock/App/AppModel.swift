@@ -40,7 +40,11 @@ final class AppModel {
             }
         }
     }
-    var errorMessage: String?
+    var errorMessage: String? {
+        didSet {
+            if let errorMessage, errorMessage != oldValue { log(.error, errorMessage) }
+        }
+    }
     var statusMessage: String?
     /// Bumped whenever content changes so the preview can refresh.
     private(set) var revision = 0 { didSet { scheduleHealthCount() } }
@@ -154,6 +158,7 @@ final class AppModel {
 
     func open(_ url: URL) {
         saveNow()
+        let reopening = site?.root.standardizedFileURL == url.standardizedFileURL
         do {
             // Sites made before page types: everything moves into pages/.
             var migrated = SiteMigration.Result()
@@ -208,6 +213,8 @@ final class AppModel {
             startSyncPolling()
             statusMessage = nil
             revision += 1
+            if !reopening { log(.app, "Opened the site", detail: url.path) }
+            checkHostingBuild()
             if !migrated.isEmpty {
                 var parts: [String] = []
                 if migrated.posts > 0 { parts.append("\(migrated.posts) \(migrated.posts == 1 ? "post" : "posts")") }
@@ -215,6 +222,7 @@ final class AppModel {
                 statusMessage = "Moved \(ListFormatter.localizedString(byJoining: parts)) into pages/. Projects are now static pages."
             }
             if movedAddresses > 0 {
+                log(.edit, "Moved \(movedAddresses) pages to their new addresses")
                 statusMessage = "Pages have new addresses: /pages/name/, and /blog/pages/name/ (and so on) for pages in a collection. Links in your pages, top bar and footer were updated, and the old addresses redirect to the new ones."
             }
         } catch {
@@ -246,6 +254,7 @@ final class AppModel {
         do {
             try StarterSite.create(at: url, title: url.lastPathComponent)
             open(url)
+            log(.app, "Created a new site", detail: url.path)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -270,12 +279,14 @@ final class AppModel {
             let user = try await self.user(for: login)
             try await SiteDownloader.download(link, to: folder, token: token, user: user)
             self.open(folder)
+            self.log(.publish, "Downloaded \(repo.fullName) from GitHub", detail: folder.path)
             self.showToast("Downloaded \(repo.fullName).")
         }
     }
 
     func close() {
         saveNow()
+        if site != nil { log(.app, "Closed the site") }
         site = nil
         selection = nil
         files = []
@@ -316,7 +327,8 @@ final class AppModel {
     }
 
     func update(_ item: ContentItem) {
-        guard let i = site?.items.firstIndex(where: { $0.id == item.id }), site?.items[i] != item else { return }
+        guard let i = site?.items.firstIndex(where: { $0.id == item.id }), let old = site?.items[i], old != item else { return }
+        logChange(from: old, to: item)
         site?.items[i] = item
         dirty.insert(item.id)
         revision += 1
@@ -325,6 +337,11 @@ final class AppModel {
 
     func updateConfig(_ config: SiteConfig) {
         guard site != nil, site?.config != config else { return }
+        if selection == .configuration {
+            logEdit("config:\(configPage.rawValue)", "Changed \(configPage.title) settings")
+        } else {
+            logEdit("config", "Changed site settings")
+        }
         site?.config = config
         configDirty = true
         revision += 1
@@ -333,6 +350,7 @@ final class AppModel {
 
     func updateTheme(_ theme: ThemeSettings) {
         guard site != nil, site?.theme != theme else { return }
+        logEdit("theme:\(configPage.rawValue)", "Changed \(selection == .configuration ? configPage.title : "the style")")
         site?.theme = theme
         themeDirty = true
         revision += 1
@@ -346,6 +364,8 @@ final class AppModel {
         case unsaved
         case saved(UUID)
         case builtInDefault
+        /// One of the templates that come with CardStock (`BuiltInTemplate`).
+        case builtIn(String)
     }
 
     /// The style the user last clicked. Remembered so that styles with
@@ -361,6 +381,7 @@ final class AppModel {
         let look = currentTheme.look
         if let styleChoice, settings(for: styleChoice)?.look == look { return styleChoice }
         if look == ThemeSettings() { return .builtInDefault }
+        if let template = BuiltInTemplate.all.first(where: { $0.theme.look == look }) { return .builtIn(template.id) }
         if let match = styles.first(where: { $0.theme.look == look }) { return .saved(match.id) }
         return .unsaved
     }
@@ -370,6 +391,7 @@ final class AppModel {
         case .unsaved: unsavedStyle
         case .saved(let id): styles.first { $0.id == id }?.theme
         case .builtInDefault: ThemeSettings()
+        case .builtIn(let id): BuiltInTemplate.named(id)?.theme
         }
     }
 
@@ -384,6 +406,15 @@ final class AppModel {
         styleChoice = .builtInDefault
         updateTheme(ThemeSettings())
         statusMessage = "Using CardStock's default template."
+    }
+
+    /// Copies one of CardStock's templates into this site.
+    func applyBuiltInTemplate(_ template: BuiltInTemplate) {
+        keepUnsavedLook()
+        styleChoice = .builtIn(template.id)
+        updateTheme(template.theme.look)
+        log(.edit, "Switched to the template “\(template.name)”")
+        statusMessage = "Using the “\(template.name)” template."
     }
 
     private func keepUnsavedLook() {
@@ -405,6 +436,7 @@ final class AppModel {
         storeStyle(set)
         styleChoice = .saved(set.id)
         if unsavedStyle == set.theme { unsavedStyle = nil }
+        log(.edit, "Saved the template “\(set.name)”")
     }
 
     /// Saves the unsaved look as a new style without switching to it.
@@ -432,6 +464,7 @@ final class AppModel {
         styleChoice = .saved(set.id)
         addWebFontsToSite(set.theme.customFonts)
         updateTheme(set.theme.look)
+        log(.edit, "Switched to the template “\(set.name)”")
         statusMessage = "Using the “\(set.name)” template."
     }
 
@@ -454,6 +487,7 @@ final class AppModel {
         do {
             try styleLibrary.delete(set.id)
             styles = styleLibrary.load()
+            log(.app, "Deleted the template “\(set.name)”")
         } catch {
             errorMessage = "Couldn't delete the template: \(error.localizedDescription)"
         }
@@ -463,6 +497,7 @@ final class AppModel {
         do {
             try StyleLibrary.exportData(set).write(to: url, options: .atomic)
             statusMessage = "Exported “\(set.name)”."
+            log(.app, "Exported the template “\(set.name)”", detail: url.path)
         } catch {
             errorMessage = "Couldn't export the template: \(error.localizedDescription)"
         }
@@ -517,6 +552,7 @@ final class AppModel {
             throw SiteError("\(names) \(found.count == 1 ? "is" : "are") already in the font menus.")
         }
         addWebFontsToSite(added)
+        log(.edit, "Added \(added.map(\.family).joined(separator: ", ")) to the fonts")
         return added
     }
 
@@ -524,6 +560,7 @@ final class AppModel {
         guard site != nil else { return }
         site?.webFonts.removeAll { $0.id == font.id }
         saveWebFonts()
+        log(.edit, "Removed the font \(font.family)")
         // Anything using it goes back to the default font.
         var theme = currentTheme
         theme.customFonts.removeAll { $0.id == font.id }
@@ -677,6 +714,7 @@ final class AppModel {
             if !collection.itemLayout.isEmpty { fm["layout"] = .string(collection.itemLayout) }
         }
         let linkMenu = kind == .links
+        log(.edit, "Made a new \(typeName(kind)): “\(title)”")
         return write(fm, body: linkMenu ? LinkMenu.starterBody + "\n" : "", to: folder.appending(path: "\(slug).md"),
                      open: open) ? kind.path(for: slug) : nil
     }
@@ -724,6 +762,61 @@ final class AppModel {
             _ = write(fm, body: "", to: url, open: false)
         }
         configCollectionID = collection.id
+        log(.edit, "Added the collection “\(collection.name)”", detail: collection.mainPath)
+    }
+
+    /// Adds a collection with an existing page as its main page. The page's
+    /// file moves to pages/<id>.md when it's named differently, links to its
+    /// old address are updated, and the old address redirects to /<id>/.
+    func addCollection(_ collection: ContentCollection, mainPage pageID: URL) {
+        guard let site, var item = site.items.first(where: { $0.id == pageID }) else { return }
+        saveNow()
+        let url = site.root.appending(path: "\(ContentKind.folder)/\(collection.id).md")
+        let moved = url.standardizedFileURL != item.fileURL.standardizedFileURL
+        if moved && FileManager.default.fileExists(atPath: url.path) {
+            errorMessage = "There's already a file named pages/\(collection.id).md, so “\(item.title)” couldn't become the \(collection.name) main page."
+            return
+        }
+        let oldPath = item.path
+        item.kind = .main(collection.id)
+        item.categories = []
+        do {
+            try item.fileText.write(to: url, atomically: true, encoding: .utf8)
+            if moved { try FileManager.default.removeItem(at: item.fileURL) }
+        } catch {
+            errorMessage = "Couldn't make “\(item.title)” the \(collection.name) main page: \(error.localizedDescription)"
+            return
+        }
+        let page = ContentItem(fileURL: url, text: item.fileText)
+        log(.edit, "Made “\(item.title)” the main page of the new collection “\(collection.name)”",
+            detail: oldPath == page.path ? nil : "Its address moved from \(oldPath) to \(page.path).")
+        self.site?.items = Site.sorted(site.items.filter { $0.id != pageID } + [page])
+        selection = .item(url)
+
+        // Links to the old address now go to the collection's.
+        let moves = oldPath == page.path ? [:] : [oldPath: page.path]
+        if !moves.isEmpty {
+            for var other in self.site?.items ?? [] where other.id != url {
+                let body = SiteMigration.rewriteLinks(in: other.body, moves)
+                if body != other.body { other.body = body; update(other) }
+            }
+            if var config = self.site?.config {
+                func fix(_ links: inout [SiteConfig.NavLink]) {
+                    for i in links.indices { links[i].url = SiteMigration.newAddress(for: links[i].url, moves) ?? links[i].url }
+                }
+                fix(&config.nav)
+                fix(&config.header.leftLinks)
+                fix(&config.header.centerLinks)
+                fix(&config.footer.links)
+                updateConfig(config)
+            }
+            try? SiteMigration.addRedirects(["\(oldPath) \(page.path) 301"], in: site.root)
+        }
+        // An older redirect away from the collection's address (such as one
+        // from the 0.6 address move) would hide the page or loop.
+        try? SiteMigration.removeRedirects(from: [page.path], in: site.root)
+        addCollection(collection)
+        revision += 1
     }
 
     /// Ensures a collection's main page has a file, then opens it to edit
@@ -754,6 +847,9 @@ final class AppModel {
             item.categories = []
             update(item)
         }
+        if let name = config.collections.first(where: { $0.id == id })?.name {
+            log(.edit, "Removed the collection “\(name)”")
+        }
         config.collections.removeAll { $0.id == id }
         config.search.kinds.removeAll { $0 == ContentCollection.itemType(id) || $0 == ContentCollection.categoryType(id) }
         updateConfig(config)
@@ -771,6 +867,7 @@ final class AppModel {
             item.tags = item.tags(renaming: slug, to: name)
             update(item)
         }
+        log(.edit, "Renamed the tag \(slug) to \(name)")
         config.tags.rename(slug, to: name)
         updateConfig(config)
         updateFileTags { $0.rename(slug, to: name) }
@@ -785,6 +882,7 @@ final class AppModel {
             update(item)
         }
         config.tags.list.removeAll { $0.slug == slug }
+        log(.edit, "Deleted the tag \(slug)")
         updateConfig(config)
         updateFileTags { $0.remove(slug) }
         if previewTagSlug == slug { previewTagSlug = "" }
@@ -814,6 +912,12 @@ final class AppModel {
                 tags[file.path] = TagSettings.changing(tags[file.path], adding: adding, removing: removing)
             }
         }
+        var parts: [String] = []
+        if !adding.isEmpty { parts.append("added \(adding.joined(separator: ", "))") }
+        if !removing.isEmpty { parts.append("removed \(removing.joined(separator: ", "))") }
+        if !parts.isEmpty {
+            log(.edit, "Tags on \(files.count == 1 ? files[0].name : "\(files.count) files"): \(parts.joined(separator: "; "))")
+        }
     }
 
     /// Sets a tag's description (kept in site.json).
@@ -832,7 +936,9 @@ final class AppModel {
         // Home and the 404 page are needed by every site.
         if let item = site?.items.first(where: { $0.id == id }), !item.canBeDeleted { return }
         do {
+            let title = site?.items.first { $0.id == id }?.title ?? id.lastPathComponent
             try FileManager.default.trashItem(at: id, resultingItemURL: nil)
+            log(.edit, "Moved the page “\(title)” to the Trash")
             dirty.remove(id)
             site?.items.removeAll { $0.id == id }
             if selection == .item(id) { selection = nil }
@@ -919,6 +1025,8 @@ final class AppModel {
         guard let root = site?.root, !urls.isEmpty else { return [] }
         do {
             let added = try MediaLibrary.addFiles(urls, to: root)
+            log(.edit, added.count == 1 ? "Added the file \(added[0])" : "Added \(added.count) files",
+                detail: added.count > 1 ? added.joined(separator: "\n") : nil)
             refreshFiles()
             showToast(added.count == 1 ? "Added \((added[0] as NSString).lastPathComponent)." : "Added \(added.count) files.")
             return added.compactMap { path in files.first { $0.path == path } }
@@ -951,6 +1059,7 @@ final class AppModel {
                     try ImageEditor.apply(edit, to: large, small: small)
                 }.value
                 imageUndo[file.path, default: []].append(backup)
+                log(.edit, "Edited the image \(file.name)")
                 finishImageEdit()
             } catch {
                 isEditingImage = false
@@ -971,6 +1080,7 @@ final class AppModel {
                     try ImageEditor.removeBackground(from: url)
                 }.value
                 let path = String(result.standardizedFileURL.path.dropFirst(root.standardizedFileURL.path.count + 1))
+                log(.edit, "Removed the background of \(file.name)", detail: "Saved as \(path)")
                 finishImageEdit()
                 selectedFileIDs = [path]
                 showToast("Saved the cut-out as \(result.lastPathComponent).")
@@ -993,6 +1103,7 @@ final class AppModel {
             try? fm.copyItem(at: saved, to: target)
         }
         try? fm.removeItem(at: backup)
+        log(.edit, "Undid the last edit to \(file.name)")
         finishImageEdit()
     }
 
@@ -1020,6 +1131,7 @@ final class AppModel {
             let path = try MediaLibrary.duplicate(file, root: root)
             refreshFiles()
             selectedFileIDs = [path]
+            log(.edit, "Copied \(file.name) to \(path)")
             showToast("Made a copy: \((path as NSString).lastPathComponent).")
         } catch {
             errorMessage = "Couldn't duplicate \(file.name): \(error.localizedDescription)"
@@ -1032,6 +1144,7 @@ final class AppModel {
         do {
             try MediaLibrary.moveToTrash(file, root: root)
             if !file.tags.isEmpty { updateFileTags { $0[file.path] = [] } }
+            log(.edit, "Moved the file \(file.path) to the Trash")
             showToast("Moved \(file.name) to the Trash.")
         } catch {
             errorMessage = "Couldn't move \(file.name) to the Trash: \(error.localizedDescription)"
@@ -1172,6 +1285,8 @@ final class AppModel {
         saveNow()
         do {
             let report = try SiteBuilder.build(site)
+            log(.publish, "Built \(report.pageCount) pages into public/",
+                detail: report.warnings.isEmpty ? nil : report.warnings.joined(separator: "\n"))
             var message = "Generated \(report.pageCount) pages of flat HTML in public/."
             if !report.warnings.isEmpty {
                 message += " " + report.warnings.joined(separator: " ")
@@ -1208,6 +1323,14 @@ final class AppModel {
             // Ignore results for a site that's no longer open.
             guard site?.root == root else { return }
             syncStatus = status
+            if status.behind > 0, status.behind != previous?.behind {
+                log(.publish, "\(status.behind) \(status.behind == 1 ? "update" : "updates") on GitHub from another Mac",
+                    detail: status.incoming.map(\.message).joined(separator: "\n"))
+            }
+            if let problem = status.fetchError, problem != previous?.fetchError {
+                log(.error, "Couldn't check GitHub for updates", detail: problem)
+            }
+            if fetch { checkHostingBuild() }
         }
     }
 
@@ -1257,6 +1380,8 @@ final class AppModel {
                 }
             }
             self.reload()
+            self.log(.publish, "Kept GitHub's version of \(paths.count) \(paths.count == 1 ? "file" : "files")",
+                     detail: paths.joined(separator: "\n"))
             self.showToast("Kept GitHub's version. Your edits are in the Trash.")
         }
         refreshStatus(fetch: false)
@@ -1370,6 +1495,7 @@ final class AppModel {
                 self.defaultAccountLogin = user.login
             }
             login = user.login
+            self.log(.app, "Signed in to GitHub as \(user.login)", appWide: true)
         }
         refreshStatus(fetch: true)
         return login
@@ -1378,6 +1504,7 @@ final class AppModel {
     /// Removes an account's token from this Mac.
     func signOut(_ login: String) {
         Keychain.delete(login)
+        log(.app, "Signed out of GitHub account \(login)", appWide: true)
         loadAccounts()
         if defaultAccountLogin == login { defaultAccountLogin = accounts.first?.login }
         refreshStatus(fetch: false)
@@ -1388,6 +1515,7 @@ final class AppModel {
         guard let root = site?.root, chosenAccount != login else { return }
         LocalData.setGitHubAccount(login, in: root)
         chosenAccount = login
+        log(.publish, "Publishing from this Mac with the GitHub account \(login)")
         refreshStatus(fetch: true)
     }
 
@@ -1434,7 +1562,9 @@ final class AppModel {
         chosenAccount = LocalData.gitHubAccount(in: root)
         markPublished()
         refreshStatus(fetch: false)
+        log(.publish, "Linked to \(repo) on GitHub and published", link: "https://github.com/\(repo)")
         statusMessage = "Linked to \(repo) and published."
+        checkHostingBuild(after: .now)
     }
 
     func unlink() async {
@@ -1442,6 +1572,7 @@ final class AppModel {
         await perform("Unlinking…") {
             try await Publisher(root: root, token: self.token ?? "").unlink()
             self.project = ProjectSettings.load(from: root)
+            self.log(.publish, "Unlinked from GitHub")
             self.statusMessage = "Unlinked from GitHub. The site still works locally."
             self.refreshStatus(fetch: false)
         }
@@ -1452,17 +1583,26 @@ final class AppModel {
         guard let root = site?.root, let token, let link = project.github, !isWorking else { return false }
         saveNow()
         setPublishIndicator(.publishing)
+        log(.publish, "Publishing to \(link.repo)…", detail: message.isEmpty ? nil : "Message: \(message)")
+        let started = Date.now
         let succeeded = await perform("Publishing…") {
             let user = try await self.user(for: self.siteAccount?.login ?? "")
             let outcome = try await Publisher(root: root, token: token).publish(link: link, user: user, message: message)
-            if outcome.pulledChanges { self.reload() }
+            if outcome.pulledChanges {
+                self.reload()
+                self.log(.publish, "Brought in changes published from another Mac")
+            }
             self.markPublished()
+            self.log(.publish, outcome.committed || outcome.pulledChanges
+                     ? "Published to \(link.repo)" : "Already up to date on GitHub",
+                     link: "https://github.com/\(link.repo)/commits/\(link.branch)")
             self.statusMessage = outcome.committed || outcome.pulledChanges
                 ? "Published to \(link.repo)."
                 : "Already up to date on GitHub."
             self.showToast(self.statusMessage ?? "Published.")
         }
         setPublishIndicator(succeeded ? .done : nil)
+        if succeeded { checkHostingBuild(after: started) } else { log(.publish, "Publishing didn't finish", failed: true) }
         // Also after a failed publish, so the page shows where things stand.
         refreshStatus(fetch: false)
         return succeeded
@@ -1518,11 +1658,13 @@ final class AppModel {
 
     func schedulePublish(at date: Date, message: String) {
         setSchedule(ScheduledPublish(date: date, message: message))
+        log(.publish, "Scheduled a publish for \(date.formatted(date: .abbreviated, time: .shortened))")
         showToast("Publishing \(date.formatted(date: .abbreviated, time: .shortened)).")
     }
 
     func cancelScheduledPublish() {
         setSchedule(nil)
+        log(.publish, "Removed the scheduled publish")
         showToast("Scheduled publish removed.")
     }
 
@@ -1584,6 +1726,7 @@ final class AppModel {
         try? ScheduledPublish.save(nil, in: root)
         armSchedule()
 
+        log(.publish, "Starting the scheduled publish")
         let failure: String?
         if project.github == nil {
             failure = "This site isn't linked to GitHub any more."
@@ -1600,6 +1743,7 @@ final class AppModel {
             var failed = schedule
             failed.failure = failure
             setSchedule(failed)
+            log(.error, "The scheduled publish failed", detail: failure)
         } else {
             showToast("Published automatically.")
         }
@@ -1624,5 +1768,96 @@ final class AppModel {
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: .now)
+    }
+
+    // MARK: - Activity log
+
+    /// Everything that happens, for Status → Activity Log.
+    let activityLog = ActivityLog(fileURL: AppModel.isRunningTests ? nil : ActivityLog.defaultURL)
+    /// When each kind of continuous edit was last logged.
+    private var lastEditLogged: [String: Date] = [:]
+
+    /// Adds an entry for the open site (or the app, with `appWide`).
+    func log(_ kind: LogEntry.Kind, _ message: String, detail: String? = nil, link: String? = nil,
+             key: String? = nil, failed: Bool = false, appWide: Bool = false) {
+        var entry = LogEntry(kind: kind, message: message, detail: detail, link: link, key: key, failed: failed)
+        if !appWide, let site {
+            entry.site = site.config.title.isEmpty ? site.root.lastPathComponent : site.config.title
+            entry.sitePath = site.root.path
+        }
+        activityLog.add(entry)
+    }
+
+    /// Typing and dragging change things many times a second, so the same
+    /// kind of edit is logged at most every ten minutes.
+    private func logEdit(_ key: String, _ message: String) {
+        if let last = lastEditLogged[key], Date.now.timeIntervalSince(last) < 600 { return }
+        lastEditLogged[key] = .now
+        log(.edit, message)
+    }
+
+    private func logChange(from old: ContentItem, to new: ContentItem) {
+        let title = new.title.isEmpty ? new.slug : new.title
+        if old.kind != new.kind {
+            log(.edit, "Changed “\(title)” to a \(typeName(new.kind))")
+        } else if old.isDraft != new.isDraft {
+            log(.edit, new.isDraft ? "Made “\(title)” a draft" : "“\(title)” is no longer a draft")
+        } else {
+            logEdit("page:\(new.id.path)", "Edited “\(title)”")
+        }
+    }
+
+    /// "static page", "video" and so on; the type itself for a collection
+    /// that's missing from site.json.
+    private func typeName(_ kind: ContentKind) -> String {
+        guard let config = site?.config, kind.collectionID == nil || config.collection(for: kind) != nil else {
+            return kind.rawValue
+        }
+        return config.singularName(kind).lowercased()
+    }
+
+    private var hostingTask: Task<Void, Never>?
+
+    /// Asks GitHub how the host (Cloudflare, Netlify, …) built the latest
+    /// commit and logs each result once; a failed build also shows a
+    /// message. After a publish (`published`), keeps checking while builds
+    /// run, for up to 15 minutes.
+    func checkHostingBuild(after published: Date? = nil) {
+        guard let root = site?.root, let link = project.github, let token, !Self.isRunningTests else { return }
+        // A check after a publish keeps running; regular checks don't interrupt it.
+        if published == nil, hostingTask != nil { return }
+        hostingTask?.cancel()
+        hostingTask = Task { [weak self] in
+            defer { if !Task.isCancelled { self?.hostingTask = nil } }
+            let git = Git(root: root)
+            let remote = try? await git.run("rev-parse", "origin/\(link.branch)")
+            let local = try? await git.run("rev-parse", "HEAD")
+            guard let sha = (remote ?? local)?.trimmingCharacters(in: .whitespacesAndNewlines), !sha.isEmpty else { return }
+            let client = GitHubClient(token: token)
+            if published != nil { try? await Task.sleep(for: .seconds(15)) }
+            while !Task.isCancelled {
+                let checks = (try? await client.buildChecks(link.repo, commit: sha)) ?? []
+                guard let self, self.site?.root == root else { return }
+                for check in checks where !check.isRunning {
+                    let key = "build:\(sha):\(check.name)"
+                    guard !self.activityLog.contains(key: key) else { continue }
+                    var detail = "Commit \(sha.prefix(7))"
+                    if let summary = check.summary, !summary.isEmpty { detail += ": \(summary)" }
+                    if check.succeeded {
+                        self.log(.hosting, "\(check.name): build succeeded", detail: detail, link: check.link, key: key)
+                    } else {
+                        self.log(.hosting, "\(check.name): build failed (\(check.conclusion))", detail: detail,
+                                 link: check.link, key: key, failed: true)
+                        self.showToast("The \(check.name) build failed, so the website wasn't updated. Details are in Status → Activity Log.")
+                    }
+                }
+                guard let published else { return }
+                // Builds can take a moment to show up after a push.
+                let waiting = checks.contains(where: \.isRunning)
+                    || (checks.isEmpty && Date.now.timeIntervalSince(published) < 180)
+                guard waiting, Date.now.timeIntervalSince(published) < 15 * 60 else { return }
+                try? await Task.sleep(for: .seconds(20))
+            }
+        }
     }
 }

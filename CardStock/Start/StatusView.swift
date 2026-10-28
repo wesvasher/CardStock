@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Status, under Start in the sidebar: the site's health checklist, how it
-/// gets from this Mac to the web (and which steps are set up), how big it
-/// is against GitHub's and Cloudflare's limits, and help articles for fixing
-/// problems.
+/// Status, under Start in the sidebar: how the site gets from this Mac to
+/// the web (and which steps are set up), the health checklist and activity
+/// log side by side, how big it is against GitHub's and Cloudflare's limits,
+/// and help articles for fixing problems.
 struct StatusView: View {
     @Environment(AppModel.self) private var model
     let site: Site
@@ -13,15 +13,13 @@ struct StatusView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Status")
-                        .font(.largeTitle.bold())
-                    Text("Problems to fix, how your site gets online, how much space it uses, and help when something goes wrong.")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                }
-                HealthCard(site: current)
                 HowItWorksCard()
+                // Side by side at one height; each scrolls inside.
+                HStack(alignment: .top, spacing: 16) {
+                    HealthCard(site: current)
+                    ActivityLogCard()
+                }
+                .frame(height: 520)
                 StorageCard()
                 FixProblemsCard()
             }

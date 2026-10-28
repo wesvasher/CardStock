@@ -431,7 +431,16 @@ enum PageKindOptions {
         Section {
             Label("Link Menu", systemImage: "link").tag(ContentKind.links)
         }
+        if current != nil && current != .links {
+            Section {
+                Label("New Collection…", systemImage: "plus.rectangle.on.rectangle").tag(newCollection)
+            }
+        }
     }
+
+    /// Stands for "New Collection…" in the page editor's menu: picking it
+    /// opens the New Collection sheet instead of changing the type.
+    static let newCollection = ContentKind.main("")
 }
 
 /// Open and save panels for sites.

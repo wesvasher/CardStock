@@ -150,7 +150,37 @@ enum SiteMigration {
         return "---\ntype: \(type)\n---\n\n" + normalized
     }
 
-    private static func addRedirects(_ lines: [String], in root: URL) throws {
+    /// The address a `_redirects` line sends visitors away from, written
+    /// like a page path (`/videos/`), or nil for comments and blank lines.
+    static func redirectSource(_ line: String) -> String? {
+        let t = line.trimmingCharacters(in: .whitespaces)
+        guard !t.hasPrefix("#"), var source = t.split(whereSeparator: \.isWhitespace).first.map(String.init),
+              source.hasPrefix("/") else { return nil }
+        if source.hasSuffix("/index.html") { source = String(source.dropLast("index.html".count)) }
+        if !source.hasSuffix("/") && !source.contains(".") && !source.contains("*") { source += "/" }
+        return source
+    }
+
+    /// `_redirects` text without the lines that send visitors away from
+    /// `paths`, pages the site now has (Cloudflare redirects before serving
+    /// files, so those pages could never be reached, or would loop).
+    static func redirects(_ text: String, keepingPages paths: Set<String>) -> String {
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        return lines.filter { line in redirectSource(line).map { !paths.contains($0) } ?? true }
+            .joined(separator: "\n")
+    }
+
+    /// Removes lines from `static/_redirects` that send visitors away from
+    /// `paths`.
+    static func removeRedirects(from paths: Set<String>, in root: URL) throws {
+        let url = root.appending(path: "static/_redirects")
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return }
+        let kept = redirects(text, keepingPages: paths)
+        if kept != text { try kept.write(to: url, atomically: true, encoding: .utf8) }
+    }
+
+    /// Adds lines to `static/_redirects`, skipping ones already there.
+    static func addRedirects(_ lines: [String], in root: URL) throws {
         let url = root.appending(path: "static/_redirects")
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         var text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""

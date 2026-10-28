@@ -89,6 +89,62 @@ struct GitHubClient: Sendable {
         }
     }
 
+    /// A host's build of one commit, from GitHub's checks (Cloudflare
+    /// Workers and Pages report there) or commit statuses (Netlify, Vercel
+    /// and others).
+    struct BuildCheck: Sendable, Equatable {
+        var name: String
+        /// Still building.
+        var isRunning: Bool
+        var succeeded: Bool
+        /// "failure", "cancelled", "timed_out" and so on, for the log.
+        var conclusion: String
+        var link: String?
+        var summary: String?
+    }
+
+    /// The builds GitHub knows about for a commit. Empty when there are none
+    /// (or the token can't read them).
+    func buildChecks(_ fullName: String, commit sha: String) async throws -> [BuildCheck] {
+        struct Runs: Decodable {
+            struct Run: Decodable {
+                struct Output: Decodable { var title: String?; var summary: String? }
+                var name: String
+                var status: String
+                var conclusion: String?
+                var details_url: String?
+                var output: Output?
+            }
+            var check_runs: [Run]
+        }
+        struct Status: Decodable {
+            var context: String
+            var state: String
+            var target_url: String?
+            var description: String?
+        }
+        var checks: [BuildCheck] = []
+        if let runs: Runs = try? await request("GET", "/repos/\(fullName)/commits/\(sha)/check-runs") {
+            checks += runs.check_runs.map { run in
+                let conclusion = run.conclusion ?? run.status
+                return BuildCheck(name: run.name, isRunning: run.status != "completed",
+                                  succeeded: ["success", "neutral", "skipped"].contains(conclusion),
+                                  conclusion: conclusion, link: run.details_url,
+                                  summary: run.output?.title.flatMap { $0 == run.name ? nil : $0 })
+            }
+        }
+        if let statuses: [Status] = try? await request("GET", "/repos/\(fullName)/commits/\(sha)/statuses") {
+            // Newest first; keep the latest per context.
+            var seen = Set<String>()
+            for status in statuses where seen.insert(status.context).inserted {
+                checks.append(BuildCheck(name: status.context, isRunning: status.state == "pending",
+                                         succeeded: status.state == "success", conclusion: status.state,
+                                         link: status.target_url, summary: status.description))
+            }
+        }
+        return checks
+    }
+
     // MARK: - Plumbing
 
     private struct EmptyResponse: Decodable {}

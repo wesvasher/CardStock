@@ -34,6 +34,14 @@ enum SiteBuilder {
                 count += 1
             }
 
+            // Redirects away from addresses that are pages now would hide
+            // them (or loop), so they're removed.
+            let redirects = site.root.appending(path: "static/_redirects")
+            let before = try? String(contentsOf: redirects, encoding: .utf8)
+            try SiteMigration.removeRedirects(from: Set(renderer.paths), in: site.root)
+            if let before, before != (try? String(contentsOf: redirects, encoding: .utf8)) {
+                warnings.append("Removed redirects from static/_redirects that pointed away from pages on your site.")
+            }
             try copyContents(of: site.root.appending(path: "static"), to: staging)
             try copyFolder(site.root.appending(path: "theme/assets"), to: staging.appending(path: "assets"))
             try copyFolder(site.root.appending(path: "media"), to: staging.appending(path: "media"))

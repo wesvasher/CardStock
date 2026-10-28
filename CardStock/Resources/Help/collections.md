@@ -30,6 +30,10 @@ Every site starts with a **Blog**. Set up collections in [Collections](cardstock
 4. Check the **Address**. The main page lives there, like `/recipes/`, and every page in the collection under it, like `/recipes/pages/lemon-cake/`. It can't change later.
 5. Click **Create**. CardStock makes the main page; edit its title and text with **Edit Main Page**.
 
+### Turn a page into a collection
+
+Already have a page you'd like to list things on, like a Recipes page? Open it in [Pages](cardstock:pages), choose **New Collection…** from its **Type** menu, and follow the steps above. That page becomes the collection's main page, keeping its title and text. It moves to the collection's address (like `/recipes/`): links to it in your pages, top bar and footer are updated, and visitors who use the old address are sent to the new one.
+
 To add an item, click **New Page…** in [Pages](cardstock:pages) and choose the item type, like **Recipe**, or click **New Recipe…** in the collection's settings.
 
 ## Fine-tune a collection
