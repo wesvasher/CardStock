@@ -10,6 +10,7 @@ struct EditorView: View {
     @State private var pendingImages: PendingImages?
     @State private var showNewCollection = false
     @State private var showFilePicker = false
+    @State private var choosingCover = false
     @State private var confirmDelete = false
     /// The Page Settings accordion; closed whenever a page opens, so the
     /// text sits high.
@@ -31,6 +32,13 @@ struct EditorView: View {
             }
         }
         .sheet(isPresented: $showNewCollection) { AddCollectionSheet(page: current) }
+        .sheet(isPresented: $choosingCover) {
+            InsertFromFilesSheet(title: "Choose a Cover Image",
+                                 message: "Pick an image from your site's Files, or choose one from your Mac to copy it in.",
+                                 actionTitle: "Choose", allowsMacFiles: true) { file in
+                field("cover").wrappedValue = "/" + file.path
+            }
+        }
         .sheet(item: $pendingImages) { pending in
             InsertImageSheet(pending: pending, item: current) { blocks, location in
                 editor.insertBlocks(blocks, at: location)
@@ -125,6 +133,17 @@ struct EditorView: View {
                                 TextField("$24.00", text: field("price"))
                             }
                             GridRow {
+                                label("Discount")
+                                HStack(spacing: 6) {
+                                    TextField("None", text: field("discount"))
+                                        .frame(width: 56)
+                                        .multilineTextAlignment(.trailing)
+                                    Text("% off").foregroundStyle(.secondary)
+                                    Text(discountNote).foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                            GridRow {
                                 label("Buy link")
                                 TextField("Checkout link from Stripe, Gumroad, Etsy, Shopify or PayPal", text: field("buy"))
                             }
@@ -167,7 +186,13 @@ struct EditorView: View {
                         }
                         GridRow {
                             label("Cover")
-                            TextField("/media/image.jpg", text: field("cover"))
+                            HStack(spacing: 6) {
+                                TextField("/media/image.jpg", text: field("cover"))
+                                Button("Choose…") { choosingCover = true }
+                                    .help(collection?.selling == true && kind.isItem
+                                          ? "The product's main picture, on store tiles and at the top of its page"
+                                          : "The picture at the top of the page and in lists")
+                            }
                         }
                     }
                     // Every page can have tags.
@@ -333,6 +358,16 @@ struct EditorView: View {
                 updated[keyPath: keyPath] = newValue
                 model.update(updated)
             })
+    }
+
+    /// What the product sells for with its discount, next to the field.
+    private var discountNote: String {
+        let discount = current.frontMatter.string("discount") ?? ""
+        guard !discount.trimmingCharacters(in: .whitespaces).isEmpty else { return "" }
+        guard Price.percent(discount) != nil else { return "Use a number from 1 to 99" }
+        let price = current.frontMatter.string("price") ?? ""
+        guard let sale = Price.sale(price, discount: discount) else { return "Add a price to see the sale price" }
+        return "Sells for \(sale.now), was \(sale.was)"
     }
 
     private func field(_ key: String) -> Binding<String> {

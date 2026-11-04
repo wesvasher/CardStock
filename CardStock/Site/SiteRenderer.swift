@@ -276,8 +276,21 @@ struct SiteRenderer: Sendable {
         }
         if c.listSummaries { dict["summary"] = .string(item.frontMatter.string("summary") ?? "") }
         if c.listImages { dict["image"] = .string(listImage(item, c)) }
-        if c.selling { dict["price"] = .string(item.frontMatter.string("price") ?? "") }
+        if c.selling { dict.merge(Self.priceValues(item)) { $1 } }
         return .dict(dict)
+    }
+
+    /// `price` as typed, plus `onSale`, `salePrice` and `discount` (percent)
+    /// when the product has a discount, for templates.
+    static func priceValues(_ item: ContentItem) -> [String: TemplateValue] {
+        let price = item.frontMatter.string("price") ?? ""
+        var values: [String: TemplateValue] = ["price": .string(price), "onSale": .bool(false)]
+        if let sale = Price.sale(price, discount: item.frontMatter.string("discount")) {
+            values["onSale"] = .bool(true)
+            values["salePrice"] = .string(sale.now)
+            values["discount"] = .string(String(sale.percent))
+        }
+        return values
     }
 
     /// The picture for an item in lists: its cover, else its video's thumbnail.
@@ -324,8 +337,8 @@ struct SiteRenderer: Sendable {
     func listingHTML(_ items: [ContentItem], _ c: ContentCollection) -> String {
         guard !items.isEmpty else { return #"<p class="empty">\#(escapeHTML(c.shownEmptyText))</p>"# }
         let price = { (item: ContentItem) -> String in
-            let p = c.selling ? item.frontMatter.string("price") ?? "" : ""
-            return p.isEmpty ? "" : #"<p class="price">\#(escapeHTML(p))</p>"#
+            guard c.selling else { return "" }
+            return Price.html(item.frontMatter.string("price") ?? "", discount: item.frontMatter.string("discount"))
         }
         let summary = { (item: ContentItem) -> String in
             let s = c.listSummaries ? item.frontMatter.string("summary") ?? "" : ""
@@ -360,6 +373,18 @@ struct SiteRenderer: Sendable {
                     + "<span>\(escapeHTML(item.title))</span>" + date(item) + "</a>"
             }
             return #"<div class="collection-grid collection-gallery" \#(style)>"# + tiles.joined() + "</div>"
+        case .products:
+            // Tall photo tiles: the picture, the name on one line, the price.
+            let tiles = items.map { item in
+                let image = listImage(item, c)
+                let picture = image.isEmpty ? ""
+                    : #"<img src="\#(escapeHTML(image))" alt="" loading="lazy">"#
+                return #"<a class="product-tile" href="\#(escapeHTML(item.path))">"#
+                    + #"<span class="product-image">\#(picture)</span>"#
+                    + #"<h2 title="\#(escapeHTML(item.title))">\#(escapeHTML(item.title))</h2>"#
+                    + price(item) + date(item) + "</a>"
+            }
+            return #"<div class="collection-grid product-grid" \#(style)>"# + tiles.joined() + "</div>"
         }
     }
 
@@ -544,8 +569,9 @@ struct SiteRenderer: Sendable {
             if !tags.isEmpty { parts.append(tags) }
         }
         var html = parts.isEmpty ? "" : #"<p class="meta">"# + parts.joined(separator: " · ") + "</p>"
-        let price = c.selling ? item.frontMatter.string("price") ?? "" : ""
-        if !price.isEmpty { html += #"<p class="price">\#(escapeHTML(price))</p>"# }
+        if c.selling {
+            html += Price.html(item.frontMatter.string("price") ?? "", discount: item.frontMatter.string("discount"))
+        }
         return html
     }
 
@@ -764,7 +790,7 @@ struct SiteRenderer: Sendable {
             })
         }
         if item.kind.isItem, site.collection(for: item.kind)?.selling == true {
-            dict["price"] = .string(item.frontMatter.string("price") ?? "")
+            dict.merge(Self.priceValues(item)) { $1 }
             dict["buy"] = .string(item.frontMatter.string("buy") ?? "")
             let label = item.frontMatter.string("buyLabel") ?? ""
             dict["buyLabel"] = .string(label.isEmpty ? "Buy Now" : label)
@@ -1274,7 +1300,7 @@ extension SiteRenderer {
 
 extension SiteRenderer {
     /// Classes in a page's HTML that need `collectionStyle`.
-    static let collectionMarkers = [#"class="collection-"#, #"class="project-grid collection-"#, #"class="pager""#,
+    static let collectionMarkers = [#"class="collection-"#, #"class="project-grid collection-"#, #"class="pager""#, #"class="price on-sale""#,
                                     #"class="video-embed""#, #"class="category-links""#, #"class="tag-cloud""#]
 
     /// Styles for collection lists, galleries, category links, the pager,
@@ -1292,8 +1318,21 @@ extension SiteRenderer {
     .gallery-item > span:not(.gallery-blank) { display: block; margin-top: 0.45rem; font-family: var(--font-heading); font-size: 0.95rem; font-weight: 600; }
     .gallery-item:hover > span:not(.gallery-blank) { color: var(--accent); }
     .gallery-item time { display: block; font-size: 0.8rem; }
+    .product-grid { gap: 2rem 1.25rem; }
+    .product-tile { display: block; min-width: 0; color: var(--text); text-decoration: none; }
+    .product-image { display: block; aspect-ratio: 4 / 5; overflow: hidden; border-radius: var(--image-radius, 0); background: var(--card); border: 1px solid var(--line); }
+    .product-image img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.35s ease; }
+    .product-tile:hover .product-image img { transform: scale(1.03); }
+    .product-tile h2 { margin: 0.6rem 0 0.2rem; font-family: var(--font-body); font-size: 0.95rem; font-weight: 400; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .product-tile:hover h2 { text-decoration: underline; }
+    .product-tile .price { margin: 0; color: var(--text); font-size: 1.05rem; font-weight: 600; }
+    .product-tile time { display: block; font-size: 0.8rem; color: var(--muted); }
+    .price.on-sale .price-now { color: var(--accent); }
+    .price.on-sale .price-was { margin-left: 0.3em; color: var(--muted); font-size: 0.85em; font-weight: 400; }
+    .price.on-sale .price-off { color: var(--muted); font-size: 0.85em; font-weight: 400; }
+    @media (prefers-reduced-motion: reduce) { .product-image img { transition: none; } }
     @media (max-width: 760px) { .collection-grid { grid-template-columns: repeat(min(var(--cols, 3), 2), minmax(0, 1fr)); } }
-    @media (max-width: 460px) { .collection-grid:not(.collection-gallery) { grid-template-columns: 1fr; } }
+    @media (max-width: 460px) { .collection-grid:not(.collection-gallery):not(.product-grid) { grid-template-columns: 1fr; } .product-grid { gap: 1.5rem 0.75rem; } }
     .post-list .price { margin: 0.25rem 0 0; }
     .tag-list .meta { display: block; }
     .category-links, .tag-cloud { display: flex; flex-wrap: wrap; gap: 0.5rem; list-style: none; padding: 0; margin: 1.25rem 0 0; }

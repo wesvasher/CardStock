@@ -21,7 +21,7 @@ Every site starts with a **Blog**. Set up collections in [Collections](cardstock
 | Starting point | Good for | Lists items as |
 |---|---|---|
 | Blog | Dated posts, newest first, on Home and in the RSS feed | A list |
-| Shop | Products with a price and a Buy button | Cards |
+| Shop | Products with a price and a Buy button | Store |
 | Portfolio | Projects or artwork | A gallery of images |
 | Videos | Pages built around a YouTube, Vimeo or video file | Cards with thumbnails |
 | Custom | Anything else: recipes, events, episodes, case studies | Cards |
@@ -40,8 +40,9 @@ To add an item, click **New Page…** in [Pages](cardstock:pages) and choose the
 
 Choose a collection from the **Collection** menu (sorted by name; the first one shows when you open the page) to see its settings. The preview shows its main page as you change them.
 
-- **Main Page and Categories**: show items as a **List**, **Cards** or a **Gallery**, how many columns, in what order (newest, oldest or by title), and whether to show images, dates, summaries and links to each category. **When empty** is the text shown before there's anything to list.
+- **Main Page and Categories**: show items as a **List**, **Cards**, a **Gallery** or a **Store** (tall photo tiles with the name and price, like an online shop), how many columns, in what order (newest, oldest or by title), and whether to show images, dates, summaries and links to each category. **When empty** is the text shown before there's anything to list.
 - **Item Pages**: whether items have a date and show it, the cover image, tags and categories, a **Price and Buy button**, a **Video** player, links to the previous and next item, and the layout new items start with. Turning a field on adds it to each item's editor.
+- **Prices and discounts**: with **Price and Buy button** on, each item's editor has **Price** (type it as it should show, like `$24.00`), **Discount** (a percent off, like `30`; leave it empty for none), **Buy link** and **Button**. With a discount, lists and the item page show the sale price, the original price crossed out and "(30% off)". The editor shows the sale price as you type. The picture on store tiles is the item's **Cover**: click **Choose…** next to it to pick one from Files.
 - **Categories**: turn categories on, see each one with how many items it has, and make new ones.
 - **Elsewhere**: list the items on the Home page, include them in the RSS feed, and let search find them.
 

@@ -164,6 +164,8 @@ private struct CollectionSettings: View {
                           help: "Cards with an image, title, price and summary"),
                     .init(value: .gallery, title: "Gallery", systemImage: "photo.on.rectangle",
                           help: "A grid of images with titles"),
+                    .init(value: .products, title: "Store", systemImage: "bag",
+                          help: "Tall photo tiles with the name and price, showing any discount"),
                 ])
             }
             if c.listStyle != .list {
@@ -180,8 +182,11 @@ private struct CollectionSettings: View {
             if c.dated {
                 Toggle("Dates", isOn: $collection.listDates)
             }
-            if c.listStyle != .gallery {
+            if c.listStyle == .list || c.listStyle == .cards {
                 Toggle("Summaries", isOn: $collection.listSummaries)
+            }
+            if c.listStyle == .products && !c.selling {
+                caption("Store tiles show prices when Price and Buy button is on, below.")
             }
             if c.categories {
                 Toggle("Links to each category", isOn: $collection.listCategories)

@@ -57,6 +57,9 @@ struct ContentCollection: Codable, Equatable, Sendable, Identifiable {
         case cards
         /// Images in a grid, with the title under each.
         case gallery
+        /// Store tiles: a tall photo, the name on one line, and the price
+        /// (with the sale price and percent off when discounted).
+        case products
     }
 
     enum Sort: String, Codable, CaseIterable, Sendable {
@@ -160,6 +163,8 @@ struct ContentCollection: Codable, Equatable, Sendable, Identifiable {
             inFeed = true
         case .shop:
             (self.name, itemName, itemsName) = ("Shop", "Product", "Products")
+            listStyle = .products
+            columns = 4
             sort = .title
             selling = true
             showTags = false

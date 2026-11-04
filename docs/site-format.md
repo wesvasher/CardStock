@@ -106,7 +106,7 @@ my-site/
 
 - `id` is the address and the type name: the main page is `/<id>/`, and items (`type: <id>`; the blog's are `type: post`, the shop's `type: product`) and categories (`type: <id>-category`) are `/<id>/pages/<slug>/`. It can't be a reserved word (`page`, `pages`, `posts`, `tags`, `search`, …) and doesn't change after the collection is made.
 - `preset` (`blog`, `shop`, `portfolio`, `videos`, `custom`) supplies any setting left out.
-- Main page and categories: `listStyle` is `list` (rows), `cards` or `gallery`; `columns` (1–6) for cards and galleries; `sort` is `newest`, `oldest` or `title`; `listImages` (cover, or a YouTube video's thumbnail), `listDates`, `listSummaries`, `listCategories` (links to the main page and each category above the list); `emptyText` when there's nothing to list (empty: "No <items> yet.").
+- Main page and categories: `listStyle` is `list` (rows), `cards`, `gallery` or `products` (store tiles: a 4:5 photo from `cover`, the title on one line and the price, in `.product-grid` / `.product-tile`; the shop preset's default, with 4 columns); `columns` (1–6) for cards, galleries and products; `sort` is `newest`, `oldest` or `title`; `listImages` (cover, or a YouTube video's thumbnail), `listDates`, `listSummaries`, `listCategories` (links to the main page and each category above the list); `emptyText` when there's nothing to list (empty: "No <items> yet.").
 - Item pages: `dated` (items have a `date`), `showDate`, `showCover`, `showTags`, `showCategories`, `selling` (`price` and a Buy button from `buy`), `video` (a player from `video`), `prevNext` (links to the neighbouring items and the main page); `itemLayout` is the layout new items start with.
 - `categories` turns category pages on; `onHome` lists the items on Home (newest first, with other collections that have it); `inFeed` puts them in `/feed.xml`.
 
@@ -176,6 +176,7 @@ A main page without a file is still published, titled with the collection's name
 | `tags`       | all                | List of tags, e.g. `[travel, Design]`. Tags with the same address name (`Design`, `design`) are one tag |
 | `categories` | items              | Slugs of its collection's category pages it's listed on, e.g. `[travel, notes]` |
 | `price`      | items (selling)    | Price as shown, e.g. `$24.00`             |
+| `discount`   | items (selling)    | Percent off, 1–99 (`30` or `30%`). Lists and the item page show the sale price (the first number in `price`, scaled and written the same way: `$5.48` at 30 % is `$3.84`, `5,48 €` is `3,84 €`), the old price struck through and `(30% off)` |
 | `buy`        | items (selling)    | Checkout link for the Buy button (Stripe Payment Links, Gumroad, Etsy, …) |
 | `buyLabel`   | items (selling)    | Buy button text; `Buy Now` when empty     |
 | `video`      | items (video)      | YouTube or Vimeo link, or a video file (`.mp4`, `.webm`, `.mov`, `.m4v`) |
@@ -334,7 +335,7 @@ An item (any page) has `title`, `slug`, `url`, `type`, `date` (`2026-10-20`), `d
 
 - `home.html`: `posts`, the published items of every `onHome` collection, newest first, and `page` with the Home page's fields and `content`.
 - `page.html`: `page` (also carries the item's fields).
-- `collection.html`: `page` (the main or category page's fields and `content`), `collection`, `items` (each with `title`, `url`, `slug`, `draft`, and `date`/`dateDisplay`, `summary`, `image`, `price` when the collection lists them), `listing` (the items as HTML in the collection's list style) and `categoryNav` (HTML links to the main page and each category, when `listCategories` is on).
+- `collection.html`: `page` (the main or category page's fields and `content`), `collection`, `items` (each with `title`, `url`, `slug`, `draft`, and `date`/`dateDisplay`, `summary`, `image`, `price` when the collection lists them; selling collections add `onSale`, and with a discount `salePrice` and `discount`, also on item pages' `page`), `listing` (the items as HTML in the collection's list style) and `categoryNav` (HTML links to the main page and each category, when `listCategories` is on).
 - `item.html`: `item` (its fields, plus HTML `meta` (date, categories, tags and price, as the collection shows them), `actions` (the Buy button), `videoEmbed` and `pager`; `cover` is empty when covers are off) and `collection`.
 - `tags.html`: `tags` (every tag with published pages or files: `name`, `url`, `count`); on a tag's page also `tag` (`name`, `description`, `count` like "3 pages · 2 files") and `listing` (HTML: its pages (not link menus, the Template or 404 pages), then its photos as a gallery (each image's `-small` version, linking to the full one) and its other files as links).
 
