@@ -56,11 +56,12 @@ struct PriceTests {
             .write(to: pages.appending(path: "linked.md"), atomically: true, encoding: .utf8)
         site = try Site.load(from: root)
         let html = try #require(try SiteRenderer(site: site).render(path: shop.mainPath))
-        #expect(html.contains(#"<a class="product-tile has-video" href="/shop/pages/mug/"><span class="product-image"><img src="/media/files/mug.jpg" alt="" loading="lazy"><video class="product-hover-video" src="/media/files/mug.mp4" muted loop playsinline preload="none" aria-hidden="true" tabindex="-1"></video><span class="product-video-badge""#))
+        #expect(html.contains(#"<div class="product-tile has-video"><a class="product-link" href="/shop/pages/mug/"><span class="product-image"><img src="/media/files/mug.jpg" alt="" loading="lazy"><video class="product-hover-video" src="/media/files/mug.mp4" muted loop playsinline preload="none" aria-hidden="true" tabindex="-1"></video><span class="product-video-badge""#))
         // No photo: the video's first frame stands in.
         #expect(html.contains(#"<video class="product-hover-video is-still" src="/media/files/clip.webm#t=0.1" muted loop playsinline preload="metadata""#))
         // Links aren't video files.
-        #expect(html.contains(#"<a class="product-tile" href="/shop/pages/linked/">"#))
+        #expect(html.contains(#"<div class="product-tile"><a class="product-link" href="/shop/pages/linked/">"#))
+        #expect(html.contains(#"tile.addEventListener("focusin", play);"#))
         #expect(html.contains(#"window.matchMedia("(hover: hover)")"#))
 
         // Pages without hover videos don't get the script.
@@ -95,7 +96,7 @@ struct PriceTests {
         site.config.collections = site.config.collections.filter { $0.id != shop.id } + [shop]
         try site.saveConfig()
         let pages = root.appending(path: "pages")
-        try "---\ntype: product\ntitle: Clicker Keychain\nprice: $5.48\ndiscount: 30\ncover: /media/files/clicker.jpg\n---\nHi"
+        try "---\ntype: product\ntitle: Clicker Keychain\nprice: $5.48\ndiscount: 30\ncover: /media/files/clicker.jpg\nbuy: https://buy.stripe.com/test_123\nbuyLabel: Pay Now\n---\nHi"
             .write(to: pages.appending(path: "clicker.md"), atomically: true, encoding: .utf8)
         try "---\ntype: product\ntitle: Sticker\nprice: $3.00\n---\nHi"
             .write(to: pages.appending(path: "sticker.md"), atomically: true, encoding: .utf8)
@@ -103,9 +104,18 @@ struct PriceTests {
         let renderer = try SiteRenderer(site: site)
         let list = try #require(renderer.render(path: shop.mainPath))
         #expect(list.contains(#"<div class="collection-grid product-grid" style="--cols:4">"#))
-        #expect(list.contains(#"<a class="product-tile" href="/shop/pages/clicker/"><span class="product-image"><img src="/media/files/clicker.jpg" alt="" loading="lazy"></span><h2 title="Clicker Keychain">Clicker Keychain</h2><p class="price on-sale"><span class="price-now">$3.84</span>"#))
+        #expect(list.contains(#"<div class="product-tile"><a class="product-link" href="/shop/pages/clicker/"><span class="product-image"><img src="/media/files/clicker.jpg" alt="" loading="lazy"></span><h2 title="Clicker Keychain">Clicker Keychain</h2><p class="price on-sale"><span class="price-now">$3.84</span>"#))
         #expect(list.contains(#"<h2 title="Sticker">Sticker</h2><p class="price">$3.00</p></a>"#))
+        // Under the price: the outlined button to the page, and the Buy link when there is one.
+        #expect(list.contains(#"<div class="product-actions"><a class="product-button" href="/shop/pages/clicker/" aria-label="View Details: Clicker Keychain">View Details</a><a class="product-pay" href="https://buy.stripe.com/test_123" target="_blank" rel="noopener" aria-label="Pay Now: Clicker Keychain">Pay Now <span aria-hidden="true">&rarr;</span></a></div></div>"#))
+        #expect(list.contains(#"<a class="product-button" href="/shop/pages/sticker/" aria-label="View Details: Sticker">View Details</a></div></div>"#))
         #expect(list.contains(".product-image { position: relative; display: block; aspect-ratio: 4 / 5;"))
+
+        // The button's text is a collection setting, and the buttons can be turned off.
+        site.config.collections[site.config.collections.count - 1].tileButtonText = "See It"
+        #expect(try SiteRenderer(site: site).render(path: shop.mainPath)?.contains(">See It</a>") == true)
+        site.config.collections[site.config.collections.count - 1].tileButtons = false
+        #expect(try SiteRenderer(site: site).render(path: shop.mainPath)?.contains(#"class="product-actions""#) == false)
 
         // The product page shows the sale too, with its styles.
         let page = try #require(renderer.render(path: "/shop/pages/clicker/"))

@@ -153,7 +153,7 @@ struct EditorView: View {
                             }
                             GridRow {
                                 label("Buy link")
-                                TextField("Checkout link from Stripe, Gumroad, Etsy, Shopify or PayPal", text: field("buy"))
+                                TextField("Optional: a Stripe Payment Link, or a checkout link from Gumroad, Etsy, Shopify or PayPal", text: field("buy"))
                             }
                             GridRow {
                                 label("Button")

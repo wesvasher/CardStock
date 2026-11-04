@@ -293,6 +293,23 @@ struct SiteRenderer: Sendable {
         return values
     }
 
+    /// Under a store tile's price: an outlined button to the item's page and,
+    /// when the item has a Buy link, a link to it (its Button text, else
+    /// "Buy Now"). Empty when the collection turns them off.
+    private func tileActions(_ item: ContentItem, _ c: ContentCollection) -> String {
+        guard c.tileButtons else { return "" }
+        let title = escapeHTML(item.title)
+        var html = #"<div class="product-actions">"#
+            + #"<a class="product-button" href="\#(escapeHTML(item.path))" aria-label="\#(escapeHTML(c.shownTileButtonText)): \#(title)">\#(escapeHTML(c.shownTileButtonText))</a>"#
+        let buy = c.selling ? (item.frontMatter.string("buy") ?? "").trimmingCharacters(in: .whitespaces) : ""
+        if !buy.isEmpty {
+            let label = (item.frontMatter.string("buyLabel") ?? "").trimmingCharacters(in: .whitespaces)
+            let text = escapeHTML(label.isEmpty ? "Buy Now" : label)
+            html += #"<a class="product-pay" href="\#(escapeHTML(buy))" target="_blank" rel="noopener" aria-label="\#(text): \#(title)">\#(text) <span aria-hidden="true">&rarr;</span></a>"#
+        }
+        return html + "</div>"
+    }
+
     /// A product's hover video (`hoverVideo` front matter), when it's a
     /// video file. Empty otherwise.
     static func hoverVideo(_ item: ContentItem) -> String {
@@ -330,8 +347,8 @@ struct SiteRenderer: Sendable {
         }
         tile.addEventListener("mouseenter", play);
         tile.addEventListener("mouseleave", stop);
-        tile.addEventListener("focus", play);
-        tile.addEventListener("blur", stop);
+        tile.addEventListener("focusin", play);
+        tile.addEventListener("focusout", function (e) { if (!tile.contains(e.relatedTarget)) stop(); });
       });
     })();
     </script>
@@ -433,10 +450,15 @@ struct SiteRenderer: Sendable {
                     picture += #"<video class="product-hover-video\#(still ? " is-still" : "")" src="\#(src)" muted loop playsinline preload="\#(still ? "metadata" : "none")" aria-hidden="true" tabindex="-1"></video>"#
                         + Self.videoBadge
                 }
-                return #"<a class="product-tile\#(video.isEmpty ? "" : " has-video")" href="\#(escapeHTML(item.path))">"#
+                // The picture, name and price link to the item; the buttons
+                // under them are links of their own (links can't nest).
+                let href = escapeHTML(item.path)
+                return #"<div class="product-tile\#(video.isEmpty ? "" : " has-video")">"#
+                    + #"<a class="product-link" href="\#(href)">"#
                     + #"<span class="product-image">\#(picture)</span>"#
                     + #"<h2 title="\#(escapeHTML(item.title))">\#(escapeHTML(item.title))</h2>"#
                     + price(item) + date(item) + "</a>"
+                    + tileActions(item, c) + "</div>"
             }
             return #"<div class="collection-grid product-grid" \#(style)>"# + tiles.joined() + "</div>"
         }
@@ -1378,17 +1400,25 @@ extension SiteRenderer {
     .gallery-item:hover > span:not(.gallery-blank) { color: var(--accent); }
     .gallery-item time { display: block; font-size: 0.8rem; }
     .product-grid { gap: 2rem 1.25rem; }
-    .product-tile { display: block; min-width: 0; color: var(--text); text-decoration: none; }
+    .product-tile { display: flex; flex-direction: column; min-width: 0; }
+    .product-link { display: block; color: var(--text); text-decoration: none; }
     .product-image { position: relative; display: block; aspect-ratio: 4 / 5; overflow: hidden; border-radius: var(--image-radius, 0); background: var(--card); border: 1px solid var(--line); }
     .product-image img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.35s ease; }
-    .product-tile:hover .product-image img { transform: scale(1.03); }
+    .product-link:hover .product-image img { transform: scale(1.03); }
     .product-hover-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.25s ease; pointer-events: none; }
     .product-hover-video.is-still, .product-tile.is-playing .product-hover-video { opacity: 1; }
     .product-video-badge { position: absolute; right: 0.6rem; bottom: 0.6rem; display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; background: rgba(255, 255, 255, 0.92); color: #111; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); transition: opacity 0.2s; }
     .product-video-badge svg { margin-left: 2px; }
     .product-tile.is-playing .product-video-badge { opacity: 0; }
     .product-tile h2 { margin: 0.6rem 0 0.2rem; font-family: var(--font-body); font-size: 0.95rem; font-weight: 400; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .product-tile:hover h2 { text-decoration: underline; }
+    .product-link:hover h2 { text-decoration: underline; }
+    .product-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-top: 0.75rem; }
+    .product-button { display: inline-flex; align-items: center; padding: 0.45rem 1.1rem; border: 1.5px solid var(--text); border-radius: 999px; color: var(--text); font-size: 0.9rem; font-weight: 600; line-height: 1.2; text-decoration: none; transition: background 0.15s; }
+    .product-button:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+    .product-pay { color: var(--text); font-size: 0.9rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
+    .product-pay span { display: inline-block; transition: transform 0.15s; }
+    .product-pay:hover { text-decoration: underline; }
+    .product-pay:hover span { transform: translateX(3px); }
     .product-tile .price { margin: 0; color: var(--text); font-size: 1.05rem; font-weight: 600; }
     .product-tile time { display: block; font-size: 0.8rem; color: var(--muted); }
     .price.on-sale .price-now { color: var(--accent); }

@@ -101,6 +101,16 @@ struct ContentCollection: Codable, Equatable, Sendable, Identifiable {
     var listCategories: Bool
     /// Shown when there's nothing to list. Empty uses "No <items> yet."
     var emptyText: String
+    /// Store tiles: an outlined button to the item's page, and a link to its
+    /// Buy link (when it has one), under the price.
+    var tileButtons = true
+    /// The outlined button's text. Empty uses `defaultTileButtonText`.
+    var tileButtonText = ""
+    static let defaultTileButtonText = "View Details"
+    var shownTileButtonText: String {
+        let text = tileButtonText.trimmingCharacters(in: .whitespaces)
+        return text.isEmpty ? Self.defaultTileButtonText : text
+    }
 
     // MARK: Item pages
     /// Items have a date (the editor shows a Date field; sorting by date uses it).
@@ -189,7 +199,7 @@ struct ContentCollection: Codable, Equatable, Sendable, Identifiable {
 
     private enum CodingKeys: String, CodingKey {
         case id, preset, name, itemName, itemsName, icon, listStyle, columns, sort, listImages, listDates,
-             listSummaries, listCategories, emptyText, dated, showDate, showCover, showTags, showCategories,
+             listSummaries, listCategories, emptyText, tileButtons, tileButtonText, dated, showDate, showCover, showTags, showCategories,
              selling, video, prevNext, itemLayout, categories, onHome, inFeed
     }
 
@@ -216,6 +226,8 @@ struct ContentCollection: Codable, Equatable, Sendable, Identifiable {
         read(.listSummaries, &listSummaries)
         read(.listCategories, &listCategories)
         read(.emptyText, &emptyText)
+        read(.tileButtons, &tileButtons)
+        read(.tileButtonText, &tileButtonText)
         read(.dated, &dated)
         read(.showDate, &showDate)
         read(.showCover, &showCover)

@@ -226,8 +226,15 @@ private struct CollectionSettings: View {
             if c.listStyle == .list || c.listStyle == .cards {
                 Toggle("Summaries", isOn: $collection.listSummaries)
             }
-            if c.listStyle == .products && !c.selling {
-                caption("Store tiles show prices when Price and Buy button is on, below.")
+            if c.listStyle == .products {
+                Toggle("Buttons under each \(c.itemName.lowercased())", isOn: $collection.tileButtons)
+                if c.tileButtons {
+                    TextField("Button text", text: $collection.tileButtonText,
+                              prompt: Text(ContentCollection.defaultTileButtonText))
+                }
+                caption(c.selling
+                        ? "The outlined button opens the \(c.itemName.lowercased())'s page. A \(c.itemName.lowercased()) with a Buy link (like a Stripe Payment Link) also gets a link to it, with its Button text."
+                        : "Store tiles show prices, and a link to each Buy link, when Price and Buy button is on, below.")
             }
             if c.categories {
                 Toggle("Links to each category", isOn: $collection.listCategories)
