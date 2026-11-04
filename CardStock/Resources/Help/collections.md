@@ -38,7 +38,7 @@ To add an item, click **New Page…** in [Pages](cardstock:pages) and choose the
 
 ## Fine-tune a collection
 
-Choose a collection from the **Collection** menu (sorted by name; the first one shows when you open the page) to see its settings. The preview shows its main page as you change them.
+Each collection has a box, sorted by name, showing its icon, name, how many items it has and its address. The boxes start closed: click one to open its settings, grouped under headings. Opening one closes the others, and the preview shows the open collection's main page as you change them. A collection you've just added opens by itself.
 
 - **Main Page and Categories**: show items as a **List**, **Cards**, a **Gallery** or a **Store** (tall photo tiles with the name and price, like an online shop), how many columns, in what order (newest, oldest or by title), and whether to show images, dates, summaries and links to each category. **When empty** is the text shown before there's anything to list.
 - **Item Pages**: whether items have a date and show it, the cover image, tags and categories, a **Price and Buy button**, a **Video** player, links to the previous and next item, and the layout new items start with. Turning a field on adds it to each item's editor.

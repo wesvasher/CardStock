@@ -322,6 +322,7 @@ struct EditorView: View {
 
     private func showCollection(_ collection: ContentCollection) {
         model.configCollectionID = collection.id
+        model.revealCollectionID = collection.id
         model.showConfiguration(.collections)
     }
 

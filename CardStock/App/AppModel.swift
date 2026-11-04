@@ -68,6 +68,9 @@ final class AppModel {
     var previewLayoutID = ""
     /// The collection shown on Configuration → Collections (and previewed).
     var configCollectionID = ""
+    /// A collection Configuration → Collections should open (a new one, or
+    /// from a page's Type menu). Its boxes start closed otherwise.
+    var revealCollectionID: String?
     /// The tag previewed on Configuration → Tags (empty: the list of tags).
     var previewTagSlug = ""
 
@@ -765,6 +768,7 @@ final class AppModel {
             _ = write(fm, body: "", to: url, open: false)
         }
         configCollectionID = collection.id
+        revealCollectionID = collection.id
         log(.edit, "Added the collection “\(collection.name)”", detail: collection.mainPath)
     }
 
