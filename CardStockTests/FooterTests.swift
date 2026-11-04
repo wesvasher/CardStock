@@ -88,6 +88,55 @@ struct FooterTests {
         #expect(footer(html)?.contains("footer-logo") == false)
     }
 
+    @Test func phoneLayouts() throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // Stacked and centered by default, for every site.
+        var html = try render { _ in }
+        #expect(html.contains("@media (max-width: 600px)"))
+        #expect(html.contains(".footer-row { flex-direction: column; flex-wrap: nowrap; align-items: center; text-align: center;"))
+        #expect(html.contains(".footer-menu ul { position: static;"))
+
+        html = try render { $0.footer.phoneLayout = .stackLeft }
+        #expect(html.contains("align-items: flex-start; text-align: left;"))
+
+        // One row: the theme's own wrapping, no extra CSS.
+        html = try render { $0.footer.phoneLayout = .row }
+        #expect(!html.contains(".footer-row { flex-direction: column"))
+        #expect(SiteRenderer.footerPhoneStyle({ var f = SiteConfig.Footer(); f.phoneLayout = .row; return f }()) == nil)
+
+        // The logo's size on phones.
+        html = try render { config in
+            config.footer.phoneLayout = .row
+            config.footer.logo.image = "/media/files/logo.png"
+            config.footer.logo.width = 120
+            config.footer.logo.height = 40
+            config.footer.logo.phoneSize = 50
+        }
+        #expect(html.contains(".footer-logo { width: 60px !important; height: 20px !important; }"))
+
+        // Footer off: nothing.
+        html = try render { $0.footer.enabled = false }
+        #expect(!html.contains("@media (max-width: 600px) {\n  .site-footer"))
+
+        let old = try JSONDecoder().decode(SiteConfig.self, from: Data(#"{"footer":{"logo":{"image":"/a.png"}}}"#.utf8))
+        #expect(old.footer.phoneLayout == .stackCentered && old.footer.logo.phoneSize == 100)
+        let saved = try JSONEncoder().encode({ var c = SiteConfig(); c.footer.phoneLayout = .stackLeft; return c }())
+        #expect(String(decoding: saved, as: UTF8.self).contains(#""phoneLayout":"left""#))
+    }
+
+    /// The previews' page shows only the footer and is never published.
+    @Test func footerPreviewPage() throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let root = dir.appending(path: "Site")
+        try StarterSite.create(at: root, title: "Site")
+        let site = try Site.load(from: root)
+        let renderer = try SiteRenderer(site: site, includeDrafts: true)
+        let html = try #require(renderer.render(path: SiteRenderer.footerPreviewPath))
+        #expect(html.contains(#"<footer class="site-footer">"#))
+        #expect(html.contains("body > *:not(.site-footer):not(script)"))
+        #expect(!renderer.paths.contains(SiteRenderer.footerPreviewPath))
+    }
+
     @Test func darkFooterLogo() throws {
         defer { try? FileManager.default.removeItem(at: dir) }
         let root = dir.appending(path: "Site")

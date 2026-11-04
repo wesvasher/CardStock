@@ -103,6 +103,34 @@ struct TopBarTests {
         #expect(html.contains(#"</nav><a class="site-title""#), "the logo comes after the right-hand links")
     }
 
+    @Test func lineFadesInWhileShrinking() throws {
+        var header = SiteConfig.Header()
+        header.mode = .shrinking
+        header.bar.lineWhileShrinking = true
+        let css = try #require(SiteRenderer.headerBarStyle(header, appearance: .light))
+        #expect(css.contains("border-bottom: 1px solid color-mix(in srgb, color-mix(in srgb, var(--line) 70%, transparent) calc(var(--p, 0) * 100%), transparent)"))
+
+        // Custom colors and dark mode fade too.
+        header.bar.lineLight = "#112233"
+        header.bar.lineDark = "#445566"
+        let auto = try #require(SiteRenderer.headerBarStyle(header, appearance: .auto))
+        #expect(auto.contains("color-mix(in srgb, #112233 calc(var(--p, 0) * 100%), transparent)"))
+        #expect(auto.contains("color-mix(in srgb, #445566 calc(var(--p, 0) * 100%), transparent)"))
+
+        // Only shrinking bars fade; others keep the theme's line.
+        header.bar.lineLight = ""
+        header.bar.lineDark = ""
+        header.mode = .fixed
+        #expect(SiteRenderer.headerBarStyle(header, appearance: .light) == nil)
+        // The line off wins.
+        header.mode = .shrinking
+        header.bar.line = false
+        #expect(SiteRenderer.headerBarStyle(header, appearance: .light)?.contains("border-bottom: none") == true)
+
+        let old = try JSONDecoder().decode(SiteConfig.self, from: Data(#"{"header":{"bar":{"line":true}}}"#.utf8))
+        #expect(!old.header.bar.lineWhileShrinking)
+    }
+
     @Test func darkLogos() throws {
         defer { try? FileManager.default.removeItem(at: dir) }
         let root = dir.appending(path: "Site")

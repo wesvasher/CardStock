@@ -35,7 +35,7 @@ The bar at the top of every page, with your logo or site title and the menu. Cho
 
 ### The bar's background, line and blur
 
-- **Line under the bar** turns the thin line along the bottom of the bar on or off. It starts on for bars that stay at the top and off for one that scrolls away. While it's on, set its **Line color** (one for dark mode too, when your site has both; ↺ goes back to the site's line color), **Line thickness** and **Line style** (solid, dashed or dotted). Turning the line off keeps these for when you turn it back on.
+- **Line under the bar** turns the thin line along the bottom of the bar on or off. It starts on for bars that stay at the top and off for one that scrolls away. On a shrinking bar, **Only while shrinking** hides the line while the bar is full size and fades it in as the bar shrinks. While it's on, set its **Line color** (one for dark mode too, when your site has both; ↺ goes back to the site's line color), **Line thickness** and **Line style** (solid, dashed or dotted). Turning the line off keeps these for when you turn it back on.
 - **Background**:
   - **Page Color** is the standard look. A bar that stays at the top uses the page color, slightly see-through.
   - **Custom Color** lets you pick your own color, a separate one for dark mode when your site has both, and its **Opacity**. Lower the opacity to let the page show through.
@@ -87,14 +87,15 @@ The logo goes before the links in its position, or after them on the right. Each
 
 ## Footer
 
-The line at the bottom of every page. [Footer](cardstock:footer) has a section for each part:
+The line at the bottom of every page. [Footer](cardstock:footer) starts with a **Preview** of your footer as a computer shows it and as a phone does. It stays in view while you change the settings below, and the arrow next to **Preview** hides it. Then there's a section for each part:
 
 - **Show a footer**, at the top, turns it on or off.
+- **On Phones**: how the footer looks on screens up to 600 px wide. **Stacked, Centered** (the default) and **Stacked, Left** put everything in one column: logo, buttons, links, copyright, then the CardStock link. Drop-down menus open right under their button. **One Row** keeps the computer's row, wrapping where it runs out of room; it suits a footer with just a line or two. Computers always get the row.
 - **Divider**: **Line at the top** turns the thin line above the footer on or off. **Space above line** is the gap between the page and the footer; **Padding below line** is the gap between the line and the footer's contents. **Reset to Default** puts the theme's spacing back.
 - **Copyright**: **Copyright notice** shows © with the current year and your name. Leave **Name** empty to use the Author, or type something else, such as a business name.
 - **Links**: **Add Link** adds Privacy Policy, Terms and Conditions, Contact, or any other link.
 - **Buttons**: **Link to RSS feed** lets readers follow your blog in a news reader, and drop-down menus (below) open lists of links.
-- **Logo**: an image at the start of the footer or below it (see below).
+- **Logo**: an image at the start of the footer or below it, with a dark mode version and a smaller **Size on phones** if you like. In the stacked phone layouts the logo goes first.
 - **CardStock Attribution**: **Link to CardStock** adds a link to CardStock on GitHub, after your other links. It says **Designed with CardStock** unless you type your own text, and opens in a new window. It's off unless you turn it on.
 
 If a link points to a page you haven't written yet, click **Create Page** next to it.

@@ -52,6 +52,18 @@ struct TopBarSection: View {
             .help("A line along the bottom of the bar")
             // Kept while the line is off, for when it's turned back on.
             if h.bar.showsLine(h.mode) {
+                if h.mode == .shrinking {
+                    Toggle(isOn: header.bar.lineWhileShrinking) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Only while shrinking")
+                            Text("Hidden while the bar is full size, at the top of the page. The line fades in as the bar shrinks and shows fully once it's compact.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(.leading, 16)
+                }
                 let palettes = model.currentTheme
                 LabeledContent("Line color") {
                     HStack(spacing: 14) {

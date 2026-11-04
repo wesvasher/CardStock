@@ -31,6 +31,22 @@ struct FooterSection: View {
 
         if config.footer.enabled {
             Section {
+                Picker("Layout", selection: footer.phoneLayout) {
+                    Text("Stacked, Centered").tag(SiteConfig.Footer.PhoneLayout.stackCentered)
+                    Text("Stacked, Left").tag(SiteConfig.Footer.PhoneLayout.stackLeft)
+                    Text("One Row").tag(SiteConfig.Footer.PhoneLayout.row)
+                }
+                .pickerStyle(.segmented)
+            } header: {
+                Text("On Phones")
+            } footer: {
+                Text(phoneLayoutNote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section {
                 Toggle(isOn: footer.line.show) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Line at the top")
@@ -128,6 +144,15 @@ struct FooterSection: View {
                               prompt: Text(SiteConfig.Footer.Attribution.defaultText))
                 }
             }
+        }
+    }
+
+    private var phoneLayoutNote: String {
+        switch config.footer.phoneLayout {
+        case .stackCentered, .stackLeft:
+            "On screens up to 600 px wide, the footer becomes one column: logo, buttons, links, copyright, then the CardStock link. Drop menus open right under their button. Computers keep the row."
+        case .row:
+            "Phones get the same row as computers, wrapping onto more lines where it runs out of room. Best for a footer with just a line or two."
         }
     }
 
@@ -288,6 +313,25 @@ private struct FooterLogoRows: View {
             Picker("Position", selection: logo.placement) {
                 Text("Left of the copyright").tag(SiteConfig.Footer.Logo.Placement.left)
                 Text("Centered below").tag(SiteConfig.Footer.Logo.Placement.below)
+            }
+
+            LabeledContent("Size on phones") {
+                VStack(alignment: .trailing, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Slider(value: Binding(get: { Double(config.footer.logo.phoneSize) },
+                                              set: { config.footer.logo.phoneSize = Int($0.rounded()) }),
+                               in: 30...100, step: 5)
+                            .frame(maxWidth: 180)
+                        Text("\(config.footer.logo.phoneSize)%")
+                            .monospacedDigit()
+                            .frame(width: 44, alignment: .trailing)
+                    }
+                    if config.footer.phoneLayout != .row {
+                        Text("On phones the logo goes at the top of the footer, wherever it sits on computers.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             if config.footer.logo.placement == .below {

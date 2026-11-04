@@ -268,6 +268,9 @@ struct SiteConfig: Codable, Equatable, Sendable {
             var lineDark = ""
             var lineWidth: Double = 1
             var lineStyle = LineStyle.solid
+            /// On a shrinking bar, the line is hidden at full size and fades
+            /// in as the bar shrinks. Kept, but unused, in other modes.
+            var lineWhileShrinking = false
 
             enum LineStyle: String, Codable, CaseIterable, Sendable {
                 case solid, dashed, dotted
@@ -284,6 +287,9 @@ struct SiteConfig: Codable, Equatable, Sendable {
             /// Whether the line shows for a bar in `mode`.
             func showsLine(_ mode: Mode) -> Bool { line ?? (mode != .scrolls) }
 
+            /// Whether the line fades in as a bar in `mode` shrinks.
+            func fadesLineIn(_ mode: Mode) -> Bool { lineWhileShrinking && mode == .shrinking && showsLine(mode) }
+
             init() {}
 
             init(from decoder: Decoder) throws {
@@ -299,6 +305,7 @@ struct SiteConfig: Codable, Equatable, Sendable {
                 lineDark = try c.decodeIfPresent(String.self, forKey: .lineDark) ?? ""
                 lineWidth = try c.decodeIfPresent(Double.self, forKey: .lineWidth) ?? d.lineWidth
                 lineStyle = (try? c.decodeIfPresent(LineStyle.self, forKey: .lineStyle)) ?? d.lineStyle
+                lineWhileShrinking = try c.decodeIfPresent(Bool.self, forKey: .lineWhileShrinking) ?? false
             }
         }
 
@@ -353,6 +360,17 @@ struct SiteConfig: Codable, Equatable, Sendable {
         var attribution = Attribution()
         /// The line across the top of the footer and the space around it.
         var line = Line()
+        /// How the footer is laid out on screens 600 px wide or less.
+        var phoneLayout = PhoneLayout.stackCentered
+
+        enum PhoneLayout: String, Codable, CaseIterable, Sendable {
+            /// One centered column: logo, buttons, links, copyright, attribution.
+            case stackCentered = "center"
+            /// The same column, along the left edge.
+            case stackLeft = "left"
+            /// The desktop row, wrapping where it runs out of room.
+            case row
+        }
 
         /// The footer's top line. The defaults match the starter theme's
         /// style.css (a 1px line, 4rem above, 1.5rem below), so sites only
@@ -430,6 +448,8 @@ struct SiteConfig: Codable, Equatable, Sendable {
             /// Space above and below the logo when it's on its own row.
             var paddingTop = 16
             var paddingBottom = 16
+            /// The logo's size on phones, in percent of its size above.
+            var phoneSize = 100
 
             init() {}
 
@@ -444,6 +464,7 @@ struct SiteConfig: Codable, Equatable, Sendable {
                 placement = (try? c.decodeIfPresent(Placement.self, forKey: .placement)) ?? d.placement
                 paddingTop = try c.decodeIfPresent(Int.self, forKey: .paddingTop) ?? d.paddingTop
                 paddingBottom = try c.decodeIfPresent(Int.self, forKey: .paddingBottom) ?? d.paddingBottom
+                phoneSize = try c.decodeIfPresent(Int.self, forKey: .phoneSize) ?? d.phoneSize
             }
 
             var hasImage: Bool { !image.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -463,6 +484,7 @@ struct SiteConfig: Codable, Equatable, Sendable {
             menus = try c.decodeIfPresent([Menu].self, forKey: .menus) ?? []
             attribution = try c.decodeIfPresent(Attribution.self, forKey: .attribution) ?? Attribution()
             line = try c.decodeIfPresent(Line.self, forKey: .line) ?? Line()
+            phoneLayout = (try? c.decodeIfPresent(PhoneLayout.self, forKey: .phoneLayout)) ?? d.phoneLayout
         }
     }
 

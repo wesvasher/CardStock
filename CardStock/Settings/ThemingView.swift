@@ -42,6 +42,31 @@ struct ThemingView: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            // The footer's previews stay in view while its settings scroll.
+            if page == .footer, model.site?.config.footer.enabled == true {
+                FooterPreviewPanel()
+                Divider()
+            }
+            form
+        }
+        .sheet(isPresented: $showAddFont) {
+            AddWebFontSheet()
+        }
+        .confirmationDialog("Remove this web font?", isPresented: Binding(
+            get: { fontToRemove != nil }, set: { if !$0 { fontToRemove = nil } }), presenting: fontToRemove) { font in
+            Button("Remove “\(font.family)”", role: .destructive) { model.removeWebFont(font) }
+        } message: { _ in
+            Text("It's removed from this site's font menus. Body text or headings using it switch back to the default font.")
+        }
+        .confirmationDialog("Reset fonts, colors and components to the defaults?", isPresented: $confirmReset) {
+            Button("Reset", role: .destructive) { model.updateTheme(ThemeSettings()) }
+        } message: {
+            Text("Fonts, colors and components go back to CardStock's defaults.")
+        }
+    }
+
+    private var form: some View {
         Form {
             if !model.outdatedThemeFiles.isEmpty {
                 Section {
@@ -112,20 +137,6 @@ struct ThemingView: View {
             }
         }
         .formStyle(.grouped)
-        .sheet(isPresented: $showAddFont) {
-            AddWebFontSheet()
-        }
-        .confirmationDialog("Remove this web font?", isPresented: Binding(
-            get: { fontToRemove != nil }, set: { if !$0 { fontToRemove = nil } }), presenting: fontToRemove) { font in
-            Button("Remove “\(font.family)”", role: .destructive) { model.removeWebFont(font) }
-        } message: { _ in
-            Text("It's removed from this site's font menus. Body text or headings using it switch back to the default font.")
-        }
-        .confirmationDialog("Reset fonts, colors and components to the defaults?", isPresented: $confirmReset) {
-            Button("Reset", role: .destructive) { model.updateTheme(ThemeSettings()) }
-        } message: {
-            Text("Fonts, colors and components go back to CardStock's defaults.")
-        }
     }
 
     /// "Web fonts" with an Add button, then one row per font added to the site.

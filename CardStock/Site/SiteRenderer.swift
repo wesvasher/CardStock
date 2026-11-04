@@ -27,6 +27,8 @@ struct SiteRenderer: Sendable {
     /// A sample page with the newsletter box, for Configuration → Mailing List's
     /// preview. Never published.
     static let newsletterPreviewPath = "/_newsletter/"
+    /// Just the footer, for the previews on Configuration → Footer. Never published.
+    static let footerPreviewPath = "/_footer/"
     /// The Search page's template (pages/search.md, at /pages/search/).
     static let searchTemplate = "search"
     /// What the Search page searches: every findable page as JSON.
@@ -103,6 +105,8 @@ struct SiteRenderer: Sendable {
             return wrap(templates[Self.templatePageTemplate]!.render(.dict(context)), context: context)
         case Self.newsletterPreviewPath:
             return render(newsletterSample())
+        case Self.footerPreviewPath:
+            return Self.showingOnlyFooter(render(footerSample()))
         case Self.searchIndexPath:
             return searchIndexJSON()
         case ContentItem.searchPath where !site.items.contains(where: \.isSearchPage):
@@ -647,10 +651,13 @@ struct SiteRenderer: Sendable {
         }
         html = Self.insertMenuIcon(site.config.header, into: html)
         if site.config.header.mobileMenu { html = Self.insertCloseButtonScript(into: html) }
-        // The footer's line, when its settings differ from the theme's.
-        if let style = Self.footerLineStyle(site.config.footer),
-           let head = html.range(of: "</head>", options: .caseInsensitive) {
-            html.insert(contentsOf: style, at: head.lowerBound)
+        // The footer's line, when its settings differ from the theme's, and
+        // its layout on phones.
+        for style in [Self.footerLineStyle(site.config.footer),
+                      Self.footerPhoneStyle(site.config.footer)].compactMap({ $0 }) {
+            if let head = html.range(of: "</head>", options: .caseInsensitive) {
+                html.insert(contentsOf: style, at: head.lowerBound)
+            }
         }
         // The site icon and favicon.
         if let tags = SiteIcon.headHTML(site.config),
@@ -1001,6 +1008,62 @@ extension SiteRenderer {
         return "<style>" + css + " }</style>\n"
     }
 
+    /// CSS for the footer on screens up to 600 px wide: the stacked layouts
+    /// put everything in one column in a set order (logo, buttons, links,
+    /// copyright, attribution) and open drop menus in place, so they can't
+    /// run off the screen. Also scales the logo. Nil when nothing changes.
+    static func footerPhoneStyle(_ footer: SiteConfig.Footer) -> String? {
+        guard footer.enabled else { return nil }
+        var css = ""
+        if footer.phoneLayout != .row {
+            let left = footer.phoneLayout == .stackLeft
+            let align = left ? "flex-start" : "center"
+            css += """
+              .site-footer { display: flex; flex-direction: column; }
+              .footer-logo-row { order: -1; justify-content: \(align); padding-top: 0 !important; }
+              .footer-row { flex-direction: column; flex-wrap: nowrap; align-items: \(align); text-align: \(left ? "left" : "center"); gap: 0.75rem; }
+              .footer-row > .footer-logo { order: 0; }
+              .footer-actions { order: 1; margin-left: 0; flex-wrap: wrap; justify-content: \(align); align-items: flex-start; }
+              .footer-actions:not(:has(*)) { display: none; }
+              .footer-row > a:not(.attribution) { order: 2; }
+              .footer-row > .copyright { order: 3; }
+              .footer-row > .attribution { order: 4; }
+              .footer-menu ul { position: static; margin-top: 0.4rem; box-shadow: none; text-align: left; }
+
+            """
+        }
+        let logo = footer.logo
+        let percent = min(max(logo.phoneSize, 10), 100)
+        if logo.hasImage, percent != 100, logo.width > 0 || logo.height > 0 {
+            func scaled(_ px: Int) -> String { px > 0 ? "\(Int((Double(px) * Double(percent) / 100).rounded()))px" : "auto" }
+            css += "  .footer-logo { width: \(scaled(logo.width)) !important; height: \(scaled(logo.height)) !important; }\n"
+        }
+        guard !css.isEmpty else { return nil }
+        return "<style>\n@media (max-width: 600px) {\n" + css + "}\n</style>\n"
+    }
+
+    /// Hides everything but the footer, for the footer previews. The line
+    /// and the space under the footer stay; the space above shrinks.
+    static func showingOnlyFooter(_ html: String) -> String {
+        let style = """
+            <style>
+            body > *:not(.site-footer):not(script), .site-header, main, #nav-overlay { display: none !important; }
+            .site-footer { margin-top: 12px !important; }
+            </style>
+
+            """
+        guard let end = html.range(of: "</head>", options: [.caseInsensitive, .backwards]) else { return html }
+        var html = html
+        html.insert(contentsOf: style, at: end.lowerBound)
+        return html
+    }
+
+    /// The page behind the footer previews; only its footer shows.
+    func footerSample() -> ContentItem {
+        ContentItem(fileURL: site.root.appending(path: "pages/_footer-sample.md"),
+                    text: "---\ntitle: Footer\n---\n")
+    }
+
     /// CSS for the top bar's background, blur and bottom line, or nil when
     /// they're the theme's own. `.site-bar` is the full-width strip behind
     /// the bar; `.is-fixed` marks bars that stay at the top.
@@ -1034,13 +1097,17 @@ extension SiteRenderer {
             css += ".site-bar.is-fixed { -webkit-backdrop-filter: \(filter); backdrop-filter: \(filter); }\n"
         }
         let shows = bar.showsLine(header.mode)
+        // --p (0 at full size, 1 when compact) is set on .site-bar by
+        // base.html's shrinking script, so the line can fade in with it.
+        let fades = bar.fadesLineIn(header.mode)
         if !shows && bar.line != nil {
             css += ".site-bar, .site-bar.is-fixed { border-bottom: none; }\n"
-        } else if shows && (bar.line != nil || bar.hasCustomLine) {
+        } else if shows && (bar.line != nil || bar.hasCustomLine || fades) {
             let width = SiteRenderer.ratio(min(max(bar.lineWidth, 1), 12))
             func line(_ hex: String) -> String {
-                let color = hex.trimmingCharacters(in: .whitespaces).isEmpty
+                var color = hex.trimmingCharacters(in: .whitespaces).isEmpty
                     ? "color-mix(in srgb, var(--line) 70%, transparent)" : ThemeSettings.sanitizeColor(hex)
+                if fades { color = "color-mix(in srgb, \(color) calc(var(--p, 0) * 100%), transparent)" }
                 return ".site-bar, .site-bar.is-fixed { border-bottom: \(width)px \(bar.lineStyle.rawValue) \(color); }\n"
             }
             switch appearance {
