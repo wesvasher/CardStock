@@ -177,6 +177,7 @@ A main page without a file is still published, titled with the collection's name
 | `categories` | items              | Slugs of its collection's category pages it's listed on, e.g. `[travel, notes]` |
 | `price`      | items (selling)    | Price as shown, e.g. `$24.00`             |
 | `discount`   | items (selling)    | Percent off, 1–99 (`30` or `30%`). Lists and the item page show the sale price (the first number in `price`, scaled and written the same way: `$5.48` at 30 % is `$3.84`, `5,48 €` is `3,84 €`), the old price struck through and `(30% off)` |
+| `hoverVideo` | items (store list) | A video file (`.mp4`, `.webm`, `.mov`, `.m4v`) shown on the item's store tile: a muted, looping `<video class="product-hover-video">` over the cover (`preload="none"`), played by an inline script while the pointer is over the tile or it has focus (not on touch screens or with Reduce Motion), with a `.product-video-badge` play mark. Without a cover it shows the video's first frame (`.is-still`, `#t=0.1`) |
 | `buy`        | items (selling)    | Checkout link for the Buy button (Stripe Payment Links, Gumroad, Etsy, …) |
 | `buyLabel`   | items (selling)    | Buy button text; `Buy Now` when empty     |
 | `video`      | items (video)      | YouTube or Vimeo link, or a video file (`.mp4`, `.webm`, `.mov`, `.m4v`) |

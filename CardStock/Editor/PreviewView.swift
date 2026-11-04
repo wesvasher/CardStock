@@ -97,13 +97,38 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
         guard let url = task.request.url else { return }
         let encodedPath = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedPath ?? "/"
         let path = encodedPath.removingPercentEncoding ?? encodedPath
-        let (data, mime, status) = respond(to: path.isEmpty ? "/" : path)
-        let response = HTTPURLResponse(
-            url: url, statusCode: status, httpVersion: "HTTP/1.1",
-            headerFields: ["Content-Type": mime, "Cache-Control": "no-store"])!
+        var (data, mime, status) = respond(to: path.isEmpty ? "/" : path)
+        var headers = ["Content-Type": mime, "Cache-Control": "no-store", "Accept-Ranges": "bytes"]
+        // Video needs byte ranges: WebKit asks for parts of the file.
+        if status == 200, let header = task.request.value(forHTTPHeaderField: "Range"),
+           let range = Self.byteRange(header, length: data.count) {
+            headers["Content-Range"] = "bytes \(range.lowerBound)-\(range.upperBound - 1)/\(data.count)"
+            data = data.subdata(in: range)
+            status = 206
+        }
+        headers["Content-Length"] = String(data.count)
+        let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!
         task.didReceive(response)
         task.didReceive(data)
         task.didFinish()
+    }
+
+    /// The bytes a `Range: bytes=a-b` header asks for (also `a-` and `-n`,
+    /// the last n bytes), within a file of `length` bytes.
+    nonisolated static func byteRange(_ header: String, length: Int) -> Range<Int>? {
+        let spec = header.trimmingCharacters(in: .whitespaces)
+        guard length > 0, spec.lowercased().hasPrefix("bytes="), !spec.contains(",") else { return nil }
+        let parts = spec.dropFirst(6).split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        guard parts.count == 2 else { return nil }
+        if parts[0].isEmpty {
+            guard let n = Int(parts[1]), n > 0 else { return nil }
+            return max(length - n, 0)..<length
+        }
+        guard let start = Int(parts[0]), start < length else { return nil }
+        let end = parts[1].isEmpty ? length - 1 : min(Int(parts[1]) ?? length - 1, length - 1)
+        guard end >= start else { return nil }
+        return start..<(end + 1)
     }
 
     func webView(_ webView: WKWebView, stop task: any WKURLSchemeTask) {}

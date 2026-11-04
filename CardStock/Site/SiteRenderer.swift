@@ -293,6 +293,51 @@ struct SiteRenderer: Sendable {
         return values
     }
 
+    /// A product's hover video (`hoverVideo` front matter), when it's a
+    /// video file. Empty otherwise.
+    static func hoverVideo(_ item: ContentItem) -> String {
+        let path = (item.frontMatter.string("hoverVideo") ?? "").trimmingCharacters(in: .whitespaces)
+        guard !path.isEmpty, isVideoFile(path) else { return "" }
+        return path.hasPrefix("/") || path.contains("://") ? path : "/" + path
+    }
+
+    /// The small play mark on tiles with a hover video.
+    static let videoBadge = #"<span class="product-video-badge" aria-hidden="true"><svg viewBox="0 0 16 16" width="10" height="10"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg></span>"#
+
+    /// Plays a tile's hover video while the pointer is over it (or it has
+    /// keyboard focus), fading it in once it's playing, and rewinds it after.
+    /// Not on touch screens or with Reduce Motion.
+    static let hoverVideoScript = """
+    <script>
+    (function () {
+      if (!window.matchMedia("(hover: hover)").matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      document.querySelectorAll(".product-tile.has-video").forEach(function (tile) {
+        var video = tile.querySelector(".product-hover-video");
+        if (!video) return;
+        var wanted = false;
+        video.addEventListener("playing", function () { if (wanted) tile.classList.add("is-playing"); });
+        function play() {
+          wanted = true;
+          video.preload = "auto";
+          var p = video.play();
+          if (p && p.catch) p.catch(function () {});
+        }
+        function stop() {
+          wanted = false;
+          tile.classList.remove("is-playing");
+          video.pause();
+          try { video.currentTime = video.classList.contains("is-still") ? 0.1 : 0; } catch (e) {}
+        }
+        tile.addEventListener("mouseenter", play);
+        tile.addEventListener("mouseleave", stop);
+        tile.addEventListener("focus", play);
+        tile.addEventListener("blur", stop);
+      });
+    })();
+    </script>
+
+    """
+
     /// The picture for an item in lists: its cover, else its video's thumbnail.
     private func listImage(_ item: ContentItem, _ c: ContentCollection) -> String {
         let cover = item.frontMatter.string("cover") ?? ""
@@ -377,9 +422,18 @@ struct SiteRenderer: Sendable {
             // Tall photo tiles: the picture, the name on one line, the price.
             let tiles = items.map { item in
                 let image = listImage(item, c)
-                let picture = image.isEmpty ? ""
+                var picture = image.isEmpty ? ""
                     : #"<img src="\#(escapeHTML(image))" alt="" loading="lazy">"#
-                return #"<a class="product-tile" href="\#(escapeHTML(item.path))">"#
+                // A video that plays while the pointer is over the tile. It
+                // loads only then; without a photo its first frame shows.
+                let video = Self.hoverVideo(item)
+                if !video.isEmpty {
+                    let still = image.isEmpty
+                    let src = escapeHTML(video) + (still ? "#t=0.1" : "")
+                    picture += #"<video class="product-hover-video\#(still ? " is-still" : "")" src="\#(src)" muted loop playsinline preload="\#(still ? "metadata" : "none")" aria-hidden="true" tabindex="-1"></video>"#
+                        + Self.videoBadge
+                }
+                return #"<a class="product-tile\#(video.isEmpty ? "" : " has-video")" href="\#(escapeHTML(item.path))">"#
                     + #"<span class="product-image">\#(picture)</span>"#
                     + #"<h2 title="\#(escapeHTML(item.title))">\#(escapeHTML(item.title))</h2>"#
                     + price(item) + date(item) + "</a>"
@@ -665,6 +719,11 @@ struct SiteRenderer: Sendable {
         if Self.collectionMarkers.contains(where: body.contains),
            let head = html.range(of: "</head>", options: .caseInsensitive) {
             html.insert(contentsOf: Self.collectionStyle, at: head.lowerBound)
+        }
+        // Hover videos on store tiles.
+        if body.contains(#"class="product-hover-video"#),
+           let end = html.range(of: "</body>", options: [.caseInsensitive, .backwards]) {
+            html.insert(contentsOf: Self.hoverVideoScript, at: end.lowerBound)
         }
         // The top bar's background, blur and line, and the phone menu
         // button, when they differ from the theme's.
@@ -1320,9 +1379,14 @@ extension SiteRenderer {
     .gallery-item time { display: block; font-size: 0.8rem; }
     .product-grid { gap: 2rem 1.25rem; }
     .product-tile { display: block; min-width: 0; color: var(--text); text-decoration: none; }
-    .product-image { display: block; aspect-ratio: 4 / 5; overflow: hidden; border-radius: var(--image-radius, 0); background: var(--card); border: 1px solid var(--line); }
+    .product-image { position: relative; display: block; aspect-ratio: 4 / 5; overflow: hidden; border-radius: var(--image-radius, 0); background: var(--card); border: 1px solid var(--line); }
     .product-image img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.35s ease; }
     .product-tile:hover .product-image img { transform: scale(1.03); }
+    .product-hover-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.25s ease; pointer-events: none; }
+    .product-hover-video.is-still, .product-tile.is-playing .product-hover-video { opacity: 1; }
+    .product-video-badge { position: absolute; right: 0.6rem; bottom: 0.6rem; display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; background: rgba(255, 255, 255, 0.92); color: #111; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); transition: opacity 0.2s; }
+    .product-video-badge svg { margin-left: 2px; }
+    .product-tile.is-playing .product-video-badge { opacity: 0; }
     .product-tile h2 { margin: 0.6rem 0 0.2rem; font-family: var(--font-body); font-size: 0.95rem; font-weight: 400; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .product-tile:hover h2 { text-decoration: underline; }
     .product-tile .price { margin: 0; color: var(--text); font-size: 1.05rem; font-weight: 600; }
@@ -1330,7 +1394,7 @@ extension SiteRenderer {
     .price.on-sale .price-now { color: var(--accent); }
     .price.on-sale .price-was { margin-left: 0.3em; color: var(--muted); font-size: 0.85em; font-weight: 400; }
     .price.on-sale .price-off { color: var(--muted); font-size: 0.85em; font-weight: 400; }
-    @media (prefers-reduced-motion: reduce) { .product-image img { transition: none; } }
+    @media (prefers-reduced-motion: reduce) { .product-image img, .product-hover-video { transition: none; } }
     @media (max-width: 760px) { .collection-grid { grid-template-columns: repeat(min(var(--cols, 3), 2), minmax(0, 1fr)); } }
     @media (max-width: 460px) { .collection-grid:not(.collection-gallery):not(.product-grid) { grid-template-columns: 1fr; } .product-grid { gap: 1.5rem 0.75rem; } }
     .post-list .price { margin: 0.25rem 0 0; }
@@ -1413,11 +1477,20 @@ extension SiteRenderer {
            let id = url.path().split(separator: "/").last(where: { $0.allSatisfy(\.isNumber) }) {
             return frame("https://player.vimeo.com/video/\(id)")
         }
-        let ext = (link.split(separator: "?").first.map(String.init) ?? link).split(separator: ".").last?.lowercased() ?? ""
-        if ["mp4", "webm", "mov", "m4v"].contains(ext) {
+        if isVideoFile(link) {
             return #"<div class="video-embed"><video src="\#(escapeHTML(link))" controls playsinline preload="metadata"></video></div>"#
         }
         return #"<p class="video-link"><a href="\#(escapeHTML(link))">Watch the video</a></p>"#
+    }
+
+    /// Video file types browsers play in a `<video>`.
+    static let videoFileExtensions: Set<String> = ["mp4", "webm", "mov", "m4v"]
+
+    /// Whether a link or path is a video file (by its extension).
+    static func isVideoFile(_ link: String) -> Bool {
+        let path = link.trimmingCharacters(in: .whitespaces).split(separator: "?").first.map(String.init) ?? link
+        guard let dot = path.lastIndex(of: "."), !path[dot...].contains("/") else { return false }
+        return videoFileExtensions.contains(path[path.index(after: dot)...].lowercased())
     }
 
     /// A thumbnail for a YouTube link, for lists.

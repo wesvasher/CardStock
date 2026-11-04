@@ -11,6 +11,8 @@ struct InsertFromFilesSheet: View {
     var actionTitle = "Insert"
     /// Shows "Choose from Mac…", which copies an image into Files and uses it.
     var allowsMacFiles = false
+    /// What the list shows at first, and what clearing the filters goes back to.
+    var startFilter = FileFilter.images
     let onInsert: (MediaFile) -> Void
 
     @State private var query = ""
@@ -23,7 +25,7 @@ struct InsertFromFilesSheet: View {
         FileFilter.apply(model.files, filter: filter, sort: sort, query: query)
     }
 
-    private var isFiltered: Bool { filter != .images || !query.isEmpty }
+    private var isFiltered: Bool { filter != startFilter || !query.isEmpty }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -37,7 +39,7 @@ struct InsertFromFilesSheet: View {
                 }
                 HStack(spacing: 10) {
                     SearchField(query: $query)
-                    FileFilterMenu(filter: $filter, sort: $sort, unfiltered: .images)
+                    FileFilterMenu(filter: $filter, sort: $sort, unfiltered: startFilter)
                 }
                 HStack(spacing: 10) {
                     let count = shown.count
@@ -46,9 +48,9 @@ struct InsertFromFilesSheet: View {
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                     if isFiltered {
-                        Button(FileFilter.clearTitle(filter: filter, query: query, default: .images)) {
+                        Button(FileFilter.clearTitle(filter: filter, query: query, default: startFilter)) {
                             withAnimation(.snappy) {
-                                filter = .images
+                                filter = startFilter
                                 query = ""
                             }
                         }
@@ -84,7 +86,8 @@ struct InsertFromFilesSheet: View {
             HStack {
                 if allowsMacFiles {
                     Button("Choose from Mac…", action: chooseFromMac)
-                        .help("Copy an image from your Mac into your site's Files and use it")
+                        .help(startFilter == .videos ? "Copy a video from your Mac into your site's Files and use it"
+                              : "Copy an image from your Mac into your site's Files and use it")
                 }
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
@@ -94,7 +97,10 @@ struct InsertFromFilesSheet: View {
             .padding(.vertical, 12)
         }
         .frame(width: 580, height: 620)
-        .onAppear { model.refreshFiles() }
+        .onAppear {
+            filter = startFilter
+            model.refreshFiles()
+        }
     }
 
     private func card(_ file: MediaFile) -> some View {
@@ -128,7 +134,7 @@ struct InsertFromFilesSheet: View {
         panel.prompt = actionTitle
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.image]
+        panel.allowedContentTypes = startFilter == .videos ? [.mpeg4Movie, .quickTimeMovie, .movie] : [.image]
         guard panel.runModal() == .OK, let url = panel.url,
               let file = model.addFiles([url]).first
         else { return }

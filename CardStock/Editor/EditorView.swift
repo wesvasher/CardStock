@@ -11,6 +11,7 @@ struct EditorView: View {
     @State private var showNewCollection = false
     @State private var showFilePicker = false
     @State private var choosingCover = false
+    @State private var choosingHoverVideo = false
     @State private var confirmDelete = false
     /// The Page Settings accordion; closed whenever a page opens, so the
     /// text sits high.
@@ -32,6 +33,13 @@ struct EditorView: View {
             }
         }
         .sheet(isPresented: $showNewCollection) { AddCollectionSheet(page: current) }
+        .sheet(isPresented: $choosingHoverVideo) {
+            InsertFromFilesSheet(title: "Choose a Hover Video",
+                                 message: "A short, silent clip works best: it plays muted and loops while the pointer is over the store tile. Pick one from your site's Files, or choose one from your Mac to copy it in.",
+                                 actionTitle: "Choose", allowsMacFiles: true, startFilter: .videos) { file in
+                field("hoverVideo").wrappedValue = "/" + file.path
+            }
+        }
         .sheet(isPresented: $choosingCover) {
             InsertFromFilesSheet(title: "Choose a Cover Image",
                                  message: "Pick an image from your site's Files, or choose one from your Mac to copy it in.",
@@ -150,6 +158,21 @@ struct EditorView: View {
                             GridRow {
                                 label("Button")
                                 TextField("Buy Now", text: field("buyLabel"))
+                            }
+                        }
+                        if collection.listStyle == .products {
+                            GridRow {
+                                label("Hover video")
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 6) {
+                                        TextField("None", text: field("hoverVideo"))
+                                        Button("Choose…") { choosingHoverVideo = true }
+                                            .help("A short video that plays on the store tile while the pointer is over it")
+                                    }
+                                    if let note = hoverVideoNote {
+                                        Text(note).font(.caption).foregroundStyle(.secondary)
+                                    }
+                                }
                             }
                         }
                         if collection.video {
@@ -359,6 +382,15 @@ struct EditorView: View {
                 updated[keyPath: keyPath] = newValue
                 model.update(updated)
             })
+    }
+
+    /// A word on the hover video: what's wrong with it, or how it shows.
+    private var hoverVideoNote: String? {
+        let path = (current.frontMatter.string("hoverVideo") ?? "").trimmingCharacters(in: .whitespaces)
+        guard !path.isEmpty else { return nil }
+        guard SiteRenderer.isVideoFile(path) else { return "Use a video file (.mp4, .webm, .mov or .m4v), not a YouTube or Vimeo link." }
+        let cover = (current.frontMatter.string("cover") ?? "").trimmingCharacters(in: .whitespaces)
+        return cover.isEmpty ? "Without a cover, the tile shows the video's first frame." : "Plays muted over the cover while the pointer is on the tile."
     }
 
     /// What the product sells for with its discount, next to the field.
