@@ -171,6 +171,124 @@ struct PublisherTests {
         #expect(text.contains("A's version"))
     }
 
+    /// A bare repo standing in for GitHub, with one commit holding a README.
+    private func remoteWithReadme() async throws -> (remote: URL, readmeCommit: String) {
+        let remote = base.appending(path: "remote.git")
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        try await Git(root: base).run("init", "-q", "--bare", "-b", "main", remote.path)
+        let other = base.appending(path: "other")
+        try FileManager.default.createDirectory(at: other, withIntermediateDirectories: true)
+        let git = Git(root: other)
+        try await git.run("init", "-q", "-b", "main")
+        try await git.run("config", "user.name", "Test")
+        try await git.run("config", "user.email", "test@example.com")
+        try "# Old site".write(to: other.appending(path: "README.md"), atomically: true, encoding: .utf8)
+        try await git.run("add", "-A")
+        try await git.run("commit", "-q", "-m", "Old")
+        try await git.run("push", "-q", remote.path, "main")
+        return (remote, try await git.run("rev-parse", "HEAD").trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// Linking to a repo with other files is refused unless replacing, which
+    /// swaps in the site's files on top of GitHub's history (no force push).
+    @Test(arguments: [true, false])
+    func replacesARepoWithOtherFiles(folderHasHistory: Bool) async throws {
+        defer { try? FileManager.default.removeItem(at: base) }
+        let (remote, readmeCommit) = try await remoteWithReadme()
+
+        let a = base.appending(path: "a")
+        try StarterSite.create(at: a, title: "Replace")
+        let gitA = Git(root: a)
+        if folderHasHistory {
+            try await gitA.run("init", "-q", "-b", "main")
+            try await gitA.run("config", "user.name", "Test")
+            try await gitA.run("config", "user.email", "test@example.com")
+            try await gitA.run("add", "-A")
+            try await gitA.run("commit", "-q", "-m", "Local work")
+        }
+        var publisher = Publisher(root: a, token: "")
+        publisher.remoteOverride = remote.path
+        #expect(try await publisher.contents(of: link) == .otherFiles)
+
+        // Refused: nothing changes, here or on the remote.
+        await #expect(throws: SiteError.self) {
+            _ = try await publisher.link(repo: link.repo, branch: "main", user: user)
+        }
+        #expect(ProjectSettings.load(from: a).github == nil)
+        #expect(try await Git(root: remote).run("rev-parse", "main").hasPrefix(readmeCommit))
+
+        _ = try await publisher.link(repo: link.repo, branch: "main", user: user, replacing: true)
+        #expect(ProjectSettings.load(from: a).github == link)
+        let pushed = try await Git(root: remote).run("rev-parse", "main")
+        #expect(try await gitA.run("rev-parse", "HEAD") == pushed)
+        let files = try await Git(root: remote).run("ls-tree", "-r", "--name-only", "main")
+            .split(separator: "\n").map(String.init)
+        #expect(!files.contains("README.md"))
+        #expect(files.contains(Site.configFile))
+        #expect(files.contains("public/index.html"))
+        // The old files are still in the history.
+        _ = try await Git(root: remote).run("merge-base", "--is-ancestor", readmeCommit, "main")
+        if folderHasHistory {
+            #expect(try await gitA.run("log", "--format=%s").contains("Local work"))
+        }
+        #expect(try await gitA.run("status", "--porcelain").isEmpty)
+
+        // Publishing afterwards works as usual.
+        try setSummary(a, "pages/hello-world.md", "After replacing")
+        let outcome = try await publisher.publish(link: link, user: user, message: "")
+        #expect(outcome.committed && !outcome.pulledChanges)
+    }
+
+    /// A copy of the site with its history (from another Mac) links to the
+    /// repo it came from, and picks up what was published there since.
+    @Test func linksACopyWithTheSameHistory() async throws {
+        defer { try? FileManager.default.removeItem(at: base) }
+        let remote = base.appending(path: "remote.git")
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        try await Git(root: base).run("init", "-q", "--bare", "-b", "main", remote.path)
+
+        let a = base.appending(path: "a")
+        try StarterSite.create(at: a, title: "Same")
+        let gitA = Git(root: a)
+        try await gitA.run("init", "-q", "-b", "main")
+        try await gitA.run("remote", "add", "origin", remote.path)
+        _ = try await Publisher(root: a, token: "").publish(link: link, user: user, message: "First")
+
+        // The copy: same history, never linked, with its own edit.
+        let copy = base.appending(path: "copy")
+        try FileManager.default.copyItem(at: a, to: copy)
+        try await Git(root: copy).run("remote", "remove", "origin")
+        try setSummary(copy, "pages/hello-world.md", "Edited in the copy")
+
+        // Meanwhile the original publishes another page.
+        try "---\ntitle: New\n---\nNew".write(to: a.appending(path: "pages/new.md"), atomically: true, encoding: .utf8)
+        _ = try await Publisher(root: a, token: "").publish(link: link, user: user, message: "")
+
+        var publisher = Publisher(root: copy, token: "")
+        publisher.remoteOverride = remote.path
+        #expect(try await publisher.contents(of: link) == .sameSite)
+        _ = try await publisher.link(repo: link.repo, branch: "main", user: user)
+        #expect(FileManager.default.fileExists(atPath: copy.appending(path: "pages/new.md").path))
+        let pushed = try await Git(root: remote).run("rev-parse", "main")
+        #expect(try await Git(root: copy).run("rev-parse", "HEAD") == pushed)
+        let home = try await Git(root: remote).run("show", "main:public/index.html")
+        #expect(home.contains("Edited in the copy"))
+    }
+
+    @Test func anEmptyRepoIsEmpty() async throws {
+        defer { try? FileManager.default.removeItem(at: base) }
+        let remote = base.appending(path: "remote.git")
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        try await Git(root: base).run("init", "-q", "--bare", "-b", "main", remote.path)
+        let a = base.appending(path: "a")
+        try StarterSite.create(at: a, title: "Empty")
+        var publisher = Publisher(root: a, token: "")
+        publisher.remoteOverride = remote.path
+        #expect(try await publisher.contents(of: link) == .empty)
+        _ = try await publisher.link(repo: link.repo, user: user)
+        #expect(try await Git(root: a).run("rev-parse", "HEAD") == (try await Git(root: remote).run("rev-parse", "main")))
+    }
+
     @Test func syncStatusTracksBothSides() async throws {
         defer { try? FileManager.default.removeItem(at: base) }
         let remote = base.appending(path: "remote.git")
@@ -283,10 +401,55 @@ struct AccountTests {
         #expect(LocalData.gitHubAccount(in: root) == nil)
     }
 
+    @Test func explainsWhyARepoIsntFound() {
+        let repo = "wes/site"
+        let narrow = GitHubClient.notFoundAdvice(repo: repo, login: "wes", token: "ghp_x", scopes: ["public_repo"])
+        #expect(narrow.contains("only see public"))
+        let fine = GitHubClient.notFoundAdvice(repo: repo, login: "wes", token: "github_pat_x", scopes: nil)
+        #expect(fine.contains("Contents to Read and write"))
+        let typo = GitHubClient.notFoundAdvice(repo: repo, login: "wes", token: "ghp_x", scopes: ["repo"])
+        #expect(typo.contains("spelling"))
+        #expect(!typo.contains("collaborator"))
+        let theirs = GitHubClient.notFoundAdvice(repo: "jane/blog", login: "wes", token: "ghp_x", scopes: ["repo"])
+        #expect(theirs.contains("collaborator"))
+        #expect(GitHubClient.notFoundAdvice(repo: repo, login: nil, token: "", scopes: nil).contains("can't see it"))
+    }
+
     @Test func readsTheAvatarFromGitHub() throws {
         let json = #"{"login":"wes","id":7,"name":"Wes","avatar_url":"https://avatars.githubusercontent.com/u/7"}"#
         let user = try JSONDecoder().decode(GitHubClient.User.self, from: Data(json.utf8))
         #expect(user.avatarURL == "https://avatars.githubusercontent.com/u/7")
         #expect(user.noreplyEmail == "7+wes@users.noreply.github.com")
+    }
+}
+
+struct GitErrorTests {
+    /// The push error GitHub gave during an outage (November 2026).
+    let outage = """
+        remote: Internal Server Error
+        remote: Request ID C5BB:1D65FA:22615BD:2DCD4C7:6AEB0804
+        To https://github.com/wes/site.git
+         ! [remote rejected] HEAD -> main (Internal Server Error)
+        error: failed to push some refs to 'https://github.com/wes/site.git'
+        """
+
+    @Test func spotsGitHubTroubleAndBeingOffline() {
+        #expect(Git.networkProblem(in: outage) == .gitHubTrouble)
+        #expect(Git.networkProblem(in: "error: RPC failed; HTTP 503 curl 22 The requested URL returned error: 503") == .gitHubTrouble)
+        #expect(Git.networkProblem(in: "fatal: unable to access 'https://github.com/a/b.git/': Could not resolve host: github.com") == .offline)
+        #expect(Git.networkProblem(in: "! [rejected] main -> main (fetch first)") == nil)
+        #expect(Git.networkProblem(in: "remote: Invalid username or token.") == nil)
+    }
+
+    @Test func explainsInPlainWords() {
+        let push = Git.Failure(command: "push", message: outage)
+        #expect(push.problem == .gitHubTrouble)
+        #expect(push.localizedDescription.hasPrefix("GitHub had a problem on its side and didn't take your changes"))
+        #expect(push.rawDescription.contains("Request ID"))
+        #expect(Git.Failure(command: "fetch", message: outage).localizedDescription.contains("couldn't send the latest"))
+        // Only commands that talk to GitHub; others keep git's words.
+        let local = Git.Failure(command: "commit", message: "Internal Server Error")
+        #expect(local.problem == nil)
+        #expect(local.localizedDescription == "git commit failed: Internal Server Error")
     }
 }

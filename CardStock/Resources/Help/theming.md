@@ -53,7 +53,7 @@ The bar at the top of every page, with your logo or site title and the menu. Cho
 
 **Show logo**, at the top, turns the logo off and on. While it's off, all your logo settings are kept for when you turn it back on. **Show site title** works the same way for the site's name. With either on, they sit in the chosen position; with both off, the bar shows just its links. With **Shrinks on Scroll**, you can also pick a **Compact logo** and its height.
 
-**Dark mode logo** is a version of your logo for dark backgrounds, such as one with light lettering. When your site's appearance is Auto (Configuration → Colors), visitors whose device is set to dark see it instead of the main logo; when it's always Dark, it's the only one shown; when it's always Light, it isn't used. A compact logo can have a dark version too.
+**Dark mode logo** is a version of your logo for dark backgrounds, such as one with light lettering. When your site's appearance is Auto (Configuration → Colors), visitors whose device is set to dark see it instead of the main logo; when it's always Dark, it's the only one shown; when it's always Light, it isn't used. A compact logo can have a dark version too, and so can the footer logo (Configuration → Footer).
 
 > For PNG or JPEG logos, use an image at least twice the size you show it at, so it's sharp on Retina screens.
 

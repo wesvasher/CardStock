@@ -20,6 +20,9 @@ enum SiteDownloader {
             .attempt(["clone", "--branch", link.branch, remote, folder.path])
         guard result.succeeded else {
             try? fm.removeItem(at: folder)
+            if Git.networkProblem(in: result.error) != nil {
+                throw Git.Failure(command: "clone", message: redacted(result.error, token))
+            }
             throw SiteError("Couldn't download \(link.repo): \(redacted(result.error, token))")
         }
         guard Site.isSite(folder) else {

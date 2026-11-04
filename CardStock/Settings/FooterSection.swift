@@ -262,6 +262,7 @@ private struct FooterMenuRows: View {
 /// The footer logo: an image from Files, its size in pixels, where it sits,
 /// and the space around it when it's on its own row.
 private struct FooterLogoRows: View {
+    @Environment(AppModel.self) private var model
     @Binding var config: SiteConfig
 
     private var logo: Binding<SiteConfig.Footer.Logo> { $config.footer.logo }
@@ -271,6 +272,16 @@ private struct FooterLogoRows: View {
                       sheetTitle: "Choose a Footer Logo")
 
         if config.footer.logo.hasImage {
+            LogoFileRow(title: "Dark mode logo", path: logo.darkImage,
+                        emptyText: "Uses the logo above", sheetTitle: "Choose a Dark Mode Footer Logo")
+            if let note = LogoFileRow.darkNote(
+                hasDark: !config.footer.logo.darkImage.trimmingCharacters(in: .whitespaces).isEmpty,
+                appearance: model.site?.theme?.appearance ?? .auto) {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             TextField("Description", text: logo.alt, prompt: Text(config.title))
                 .help("Read aloud by screen readers. Leave empty to use the site title.")
 

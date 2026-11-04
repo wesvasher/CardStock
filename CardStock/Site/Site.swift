@@ -418,6 +418,9 @@ struct SiteConfig: Codable, Equatable, Sendable {
 
             /// Address of the image, e.g. /media/files/logo.png. Empty means no logo.
             var image = ""
+            /// A version for dark backgrounds. Empty uses `image`. Shown on
+            /// devices set to dark (Auto appearance) or always (Dark).
+            var darkImage = ""
             /// Text for screen readers. Empty uses the site title.
             var alt = ""
             /// Size in pixels on the page. 0 leaves that side to the browser.
@@ -434,6 +437,7 @@ struct SiteConfig: Codable, Equatable, Sendable {
                 let c = try decoder.container(keyedBy: CodingKeys.self)
                 let d = Logo()
                 image = try c.decodeIfPresent(String.self, forKey: .image) ?? ""
+                darkImage = try c.decodeIfPresent(String.self, forKey: .darkImage) ?? ""
                 alt = try c.decodeIfPresent(String.self, forKey: .alt) ?? ""
                 width = try c.decodeIfPresent(Int.self, forKey: .width) ?? 0
                 height = try c.decodeIfPresent(Int.self, forKey: .height) ?? 0

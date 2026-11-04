@@ -29,7 +29,13 @@ The token is kept in your Mac's Keychain, never in the site folder. CardStock re
 
 Starting from scratch? Check the repository name (CardStock suggests one from your site's title) and click **Create Repository and Link**. That one click creates the repository on GitHub, links it to this site and uploads everything. Keep **Private repository** on unless you want others to see your files and drafts.
 
-Already made an *empty* repository on GitHub? Open **Link it instead**, type `owner/name` and click **Link Existing Repository**.
+Already have a repository on GitHub? Open **Link it instead**, type `owner/name` and click **Link Existing Repository**.
+
+- **Empty:** CardStock uploads your site.
+- **This site, copied from another Mac with its history:** CardStock combines the two, the same way Publish does.
+- **Anything else** (a README, an older website, or this site started separately on another computer): CardStock asks first. **Replace with This Site** puts your site's files in place of the ones there. It's an ordinary update, so the old files stay in the repository's history on GitHub and can be recovered. If a website is built from the repository, it shows your site after the upload.
+
+> Want to edit a site that's already on GitHub from this Mac? Don't link it: use [Open from GitHub…](help:another-mac) to download it with its history.
 
 CardStock uploads your site. Next: [host it on Cloudflare Pages](help:cloudflare).
 

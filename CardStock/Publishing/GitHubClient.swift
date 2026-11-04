@@ -40,6 +40,21 @@ struct GitHubClient: Sendable {
         }
     }
 
+    /// What GitHub's status page (githubstatus.com) reports, such as "Minor
+    /// Service Outage", or nil when all is well or it can't be reached.
+    static func serviceStatus() async -> String? {
+        struct Summary: Decodable {
+            struct Status: Decodable { var indicator: String; var description: String }
+            var status: Status
+        }
+        var req = URLRequest(url: URL(string: "https://www.githubstatus.com/api/v2/status.json")!)
+        req.timeoutInterval = 5
+        guard let (data, _) = try? await URLSession.shared.data(for: req),
+              let summary = try? JSONDecoder().decode(Summary.self, from: data),
+              summary.status.indicator != "none" else { return nil }
+        return summary.status.description
+    }
+
     func currentUser() async throws -> User {
         try await request("GET", "/user")
     }
@@ -66,8 +81,65 @@ struct GitHubClient: Sendable {
         do {
             return try await request("GET", "/repos/\(fullName)")
         } catch let error as APIError where error.status == 404 {
-            throw SiteError("Couldn't find \(fullName) on GitHub, or your token doesn't have access to it.")
+            let (login, scopes) = await tokenDetails()
+            throw SiteError(Self.notFoundAdvice(repo: fullName, login: login, token: token, scopes: scopes))
         }
+    }
+
+    /// The token's account and, for classic tokens, its scopes (GitHub sends
+    /// them in the X-OAuth-Scopes header; fine-grained tokens have none).
+    private func tokenDetails() async -> (login: String?, scopes: [String]?) {
+        var req = URLRequest(url: URL(string: "https://api.github.com/user")!)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        req.setValue("CardStock", forHTTPHeaderField: "User-Agent")
+        guard let (data, response) = try? await URLSession.shared.data(for: req),
+              let http = response as? HTTPURLResponse, http.statusCode == 200 else { return (nil, nil) }
+        let login = (try? JSONDecoder().decode(User.self, from: data))?.login
+        let scopes = http.value(forHTTPHeaderField: "X-OAuth-Scopes")?
+            .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        return (login, scopes)
+    }
+
+    /// What to do when GitHub says a repository doesn't exist. GitHub says
+    /// that about private repositories the token can't see, so this explains
+    /// which part of the token to change.
+    static func notFoundAdvice(repo: String, login: String?, token: String, scopes: [String]?) -> String {
+        let start = "GitHub says \(repo) doesn't exist"
+        guard let login else {
+            return "\(start), or your token can't see it."
+        }
+        let owner = repo.split(separator: "/").first.map(String.init) ?? ""
+        let someoneElses = !owner.isEmpty && owner.lowercased() != login.lowercased()
+        let elsewhere = someoneElses
+            ? " It belongs to \(owner), not \(login): \(owner) needs to add \(login) as a collaborator, or sign in to CardStock as \(owner)."
+            : ""
+
+        if token.hasPrefix("github_pat_") {
+            return """
+                \(start) for the fine-grained token you signed in with as \(login). GitHub answers that way when \
+                the token can't see a private repository.
+
+                On GitHub, open Settings → Developer settings → Fine-grained tokens and edit the token: set \
+                Resource owner to \(someoneElses ? owner : login), set Repository access to All repositories \
+                (or select \(repo)), and under Repository permissions set Contents to Read and write. Or make \
+                a classic token with “repo” checked (Open GitHub Token Page… on the Publishing page) and sign \
+                in with that.\(elsewhere)
+                """
+        }
+        if let scopes, !scopes.contains("repo") {
+            return """
+                \(start) for the token you signed in with as \(login). That token can only see public \
+                repositories, because “repo” wasn't checked when it was made, and \(repo) is private.
+
+                Make a new token with “repo” checked (Open GitHub Token Page… does that for you), then sign \
+                in again with it in CardStock → Settings → GitHub.\(elsewhere)
+                """
+        }
+        return """
+            \(start), signed in as \(login). Check the spelling: it's owner/name, as in the repository's \
+            address on GitHub.\(elsewhere)
+            """
     }
 
     /// True when the repo has no commits yet.

@@ -128,7 +128,7 @@ Files in `media/` are tagged in `media.json` at the site's root (committed, not 
 
 `footer.menus` is optional: drop-down buttons next to the RSS button. `page` is the slug of a link menu page (`pages/social.md` is `social`); `title` is the button text, the page's title when empty. Menus whose page is missing or has no links aren't shown.
 
-`footer.logo` is optional. `image` empty means no logo. `width` and `height` are pixels on the page; 0 leaves that side to the browser. `alt` empty uses the site title. `placement` is `left` (in the footer row, before the copyright) or `below` (its own centered row under the footer, with `paddingTop` and `paddingBottom` in pixels).
+`footer.logo` is optional. `image` empty means no logo. `darkImage` (optional) replaces it when the site is dark, the same way as the top bar's `darkLogo`: used outright with `appearance` `dark`, swapped in with a `<picture class="logo-picture">` with `auto`, not used with `light`. `width` and `height` are pixels on the page; 0 leaves that side to the browser. `alt` empty uses the site title. `placement` is `left` (in the footer row, before the copyright) or `below` (its own centered row under the footer, with `paddingTop` and `paddingBottom` in pixels).
 
 ## Content files
 

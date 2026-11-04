@@ -18,34 +18,96 @@ struct Publisher: Sendable {
 
     // MARK: - Linking
 
-    /// Sets up git in the folder (if needed), points it at an empty GitHub
-    /// repo, and pushes everything. Returns the saved link.
-    func link(repo: String, user: GitHubClient.User) async throws -> ProjectSettings.GitHubLink {
+    /// What a repository already holds, compared with this folder.
+    enum RepoContents: Sendable, Equatable {
+        /// Nothing on the branch yet.
+        case empty
+        /// The same site's history (a copy of this folder, or one it was
+        /// copied from). Linking combines the changes, like Publish does.
+        case sameSite
+        /// Files with a separate history: another site, a README, or this
+        /// site started separately. Linking replaces them, and GitHub keeps
+        /// them in the history.
+        case otherFiles
+    }
+
+    /// Looks at the repository's branch without changing anything here.
+    func contents(of link: ProjectSettings.GitHubLink) async throws -> RepoContents {
+        let remote = remoteOverride ?? link.remoteURL
+        let heads = try await git.run("ls-remote", "--heads", remote, link.branch)
+        if heads.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .empty }
+        guard git.isRepository, await hasCommits() else { return .otherFiles }
+        try await git.run("fetch", "--no-tags", remote, link.branch)
+        let base = await git.attempt(["merge-base", "HEAD", "FETCH_HEAD"])
+        return base.succeeded ? .sameSite : .otherFiles
+    }
+
+    /// Sets up git in the folder (if needed), points it at a GitHub repo and
+    /// pushes everything. Returns the saved link.
+    ///
+    /// `branch` is the repository's branch when it already has one (its
+    /// default branch); nil uses this folder's branch. A repository with
+    /// other files in it is only linked when `replacing` is true: this site's
+    /// files then go on top of GitHub's history in a normal commit (no force
+    /// push), so the old files can still be recovered there.
+    func link(repo: String, branch: String? = nil, user: GitHubClient.User,
+              replacing: Bool = false) async throws -> ProjectSettings.GitHubLink {
         try ensureGitignore()
         if !git.isRepository {
-            try await git.run("init", "-b", "main")
+            try await git.run("init", "-b", branch ?? "main")
         }
-        let branch = (try? await git.run("symbolic-ref", "--short", "HEAD"))?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? "main"
+        let localBranch = (try? await git.run("symbolic-ref", "--short", "HEAD"))?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let link = ProjectSettings.GitHubLink(
+            repo: repo, branch: branch ?? (localBranch.isEmpty ? "main" : localBranch))
+        let remote = remoteOverride ?? link.remoteURL
+
+        // Check before changing anything, so a refused link leaves no trace.
+        let contents = try await contents(of: link)
+        if contents == .otherFiles && !replacing {
+            throw SiteError("\(repo) already has other files in it. Nothing was changed.")
+        }
 
         try await ensureIdentity(user)
-
-        let link = ProjectSettings.GitHubLink(repo: repo, branch: branch.isEmpty ? "main" : branch)
         LocalData.setGitHubAccount(user.login, in: root)
         var settings = ProjectSettings.load(from: root)
         settings.github = link
         try settings.save(to: root)
 
+        // A folder with no history yet starts from GitHub's latest commit,
+        // keeping the files on disk, so the commit shows what this site changes.
+        let hadCommits = await hasCommits()
+        if contents == .otherFiles && !hadCommits {
+            try await git.run("fetch", "--no-tags", remote, link.branch)
+            try await git.run("reset", "-q", "FETCH_HEAD")
+        }
+
         try buildSite()
         try await git.run("add", "-A")
         if try await hasStagedChanges() {
-            try await git.run("commit", "-m", "Set up site with CardStock")
+            let message = contents == .otherFiles
+                ? "Replace the files with a CardStock site" : "Set up site with CardStock"
+            try await git.run("commit", "-m", message)
         }
 
         if (await git.attempt(["remote", "get-url", "origin"])).succeeded {
-            try await git.run("remote", "set-url", "origin", link.remoteURL)
+            try await git.run("remote", "set-url", "origin", remote)
         } else {
-            try await git.run("remote", "add", "origin", link.remoteURL)
+            try await git.run("remote", "add", "origin", remote)
+        }
+
+        switch contents {
+        case .empty:
+            break
+        case .sameSite:
+            _ = try await combineWithGitHub(link.branch)
+        case .otherFiles where hadCommits:
+            // Joins the two histories, keeping exactly this site's files.
+            try await git.run("fetch", "--no-tags", "origin", link.branch)
+            try await git.run("merge", "-s", "ours", "--allow-unrelated-histories", "--no-edit",
+                              "-m", "Replace the files with a CardStock site", "FETCH_HEAD")
+        case .otherFiles:
+            break
         }
         try await git.run("push", "-u", "origin", "HEAD:\(link.branch)")
         return link
@@ -79,25 +141,29 @@ struct Publisher: Sendable {
         }
 
         // Bring in anything pushed from another computer.
-        let before = try await git.run("rev-parse", "HEAD")
-        let remoteHeads = try await git.run("ls-remote", "--heads", "origin", link.branch)
-        if !remoteHeads.isEmpty {
-            try await pull(link.branch)
-        }
-        let pulled = try await git.run("rev-parse", "HEAD") != before
-
-        // Pulled content changes the generated site, so rebuild it.
-        if pulled {
-            try buildSite()
-            try await git.run("add", "-A")
-            if try await hasStagedChanges() {
-                try await git.run("commit", "-m", "Rebuild site")
-                committed = true
-            }
-        }
+        let (pulled, rebuilt) = try await combineWithGitHub(link.branch)
 
         try await git.run("push", "origin", "HEAD:\(link.branch)")
-        return Outcome(pulledChanges: pulled, committed: committed)
+        return Outcome(pulledChanges: pulled, committed: committed || rebuilt)
+    }
+
+    /// Rebases this folder's commits onto GitHub's latest, then rebuilds the
+    /// site if that brought anything in. Returns whether it did, and whether
+    /// the rebuild was committed.
+    private func combineWithGitHub(_ branch: String) async throws -> (pulled: Bool, committed: Bool) {
+        let before = try await git.run("rev-parse", "HEAD")
+        let remoteHeads = try await git.run("ls-remote", "--heads", "origin", branch)
+        if !remoteHeads.isEmpty {
+            try await pull(branch)
+        }
+        guard try await git.run("rev-parse", "HEAD") != before else { return (false, false) }
+
+        // Pulled content changes the generated site, so rebuild it.
+        try buildSite()
+        try await git.run("add", "-A")
+        guard try await hasStagedChanges() else { return (true, false) }
+        try await git.run("commit", "-m", "Rebuild site")
+        return (true, true)
     }
 
     /// Sets up git again in a linked site folder that has none, such as one
@@ -135,6 +201,9 @@ struct Publisher: Sendable {
     private func pull(_ branch: String) async throws {
         let result = await git.attempt(["pull", "--rebase", "origin", branch])
         if result.succeeded { return }
+        if !isRebasing, Git.networkProblem(in: result.error) != nil {
+            throw Git.Failure(command: "pull", message: result.error.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
         guard isRebasing else {
             throw SiteError("Couldn't get changes from GitHub: \(result.error.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
@@ -180,6 +249,10 @@ struct Publisher: Sendable {
 
     private func buildSite() throws {
         _ = try SiteBuilder.build(try Site.load(from: root))
+    }
+
+    private func hasCommits() async -> Bool {
+        (await git.attempt(["rev-parse", "--verify", "-q", "HEAD"])).succeeded
     }
 
     private func hasStagedChanges() async throws -> Bool {

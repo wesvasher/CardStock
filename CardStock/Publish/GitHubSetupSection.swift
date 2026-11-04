@@ -61,6 +61,31 @@ struct GitHubSetupSection: View {
         } message: {
             Text("The site stays on this Mac with its history, and the repository stays on GitHub. CardStock just stops publishing to it.")
         }
+        .alert(model.replaceRequest.map { "\($0.repo) already has files in it" } ?? "",
+               isPresented: Binding(get: { model.replaceRequest != nil },
+                                    set: { if !$0 { model.replaceRequest = nil } }),
+               presenting: model.replaceRequest) { request in
+            Button("Replace with This Site", role: .destructive) {
+                Task { await model.replaceAndLink(request) }
+            }
+            if request.holdsSite {
+                Button("Open from GitHub…") {
+                    model.replaceRequest = nil
+                    model.isShowingOpenFromGitHub = true
+                }
+            }
+            Button("Cancel", role: .cancel) { model.replaceRequest = nil }
+        } message: { request in
+            Text(replaceMessage(request))
+        }
+    }
+
+    private func replaceMessage(_ request: AppModel.ReplaceRequest) -> String {
+        let keep = "Nothing is lost: the old files stay in the repository's history on GitHub. If a website is built from this repository, it will show this site after the upload."
+        if request.holdsSite {
+            return "It holds a CardStock site that wasn't made from this copy. If it's this site from another computer, choose Open from GitHub… to work on that copy instead, with every change made there.\n\nReplace puts this site's files on GitHub in place of that one. " + keep
+        }
+        return "Linking replaces them with this site's files. " + keep
     }
 
     /// Which account publishes this site from this Mac.
@@ -105,7 +130,7 @@ struct GitHubSetupSection: View {
 
     /// For a site that isn't on GitHub yet. Creating a new repository is the
     /// main path (one click creates it, links it and uploads the site);
-    /// linking an existing empty one is tucked underneath.
+    /// linking an existing one is tucked underneath.
     private var linkFields: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 12) {
@@ -161,10 +186,10 @@ struct GitHubSetupSection: View {
             .padding(14)
             .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
 
-            DisclosureGroup("Already made an empty repository on GitHub? Link it instead", isExpanded: $showExisting) {
+            DisclosureGroup("Already have a repository on GitHub? Link it instead", isExpanded: $showExisting) {
                 VStack(alignment: .leading, spacing: 8) {
                     TextField("Repository", text: $existingRepo, prompt: Text("owner/name"))
-                    Text("The repository must be empty: no README or other files.")
+                    Text("If it already has files in it, CardStock asks before replacing them. To work on a site that's already on GitHub, use Open from GitHub… instead.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Button("Link Existing Repository") {

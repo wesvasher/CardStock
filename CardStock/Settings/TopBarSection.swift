@@ -501,18 +501,9 @@ struct TopBarSection: View {
 
     // MARK: - Rows
 
-    /// What the dark logo does with the site's appearance (Configuration → Colors).
     private var darkLogoNote: String? {
-        let dark = !h.darkLogo.trimmingCharacters(in: .whitespaces).isEmpty
-        switch model.site?.theme?.appearance ?? .auto {
-        case .auto:
-            return dark ? "Shown instead of the main logo to visitors whose device is set to dark."
-                : "Add a version of your logo for dark backgrounds, shown to visitors whose device is set to dark."
-        case .dark:
-            return dark ? "Your site is always dark, so this logo is the one shown." : nil
-        case .light:
-            return dark ? "Your site is always light (Configuration → Colors), so this logo isn't shown." : nil
-        }
+        LogoFileRow.darkNote(hasDark: !h.darkLogo.trimmingCharacters(in: .whitespaces).isEmpty,
+                             appearance: model.site?.theme?.appearance ?? .auto)
     }
 
     private func paddingField(_ label: String, _ side: WritableKeyPath<SiteConfig.Header.Padding, Int>) -> some View {
@@ -623,6 +614,20 @@ private struct HexField: View {
 /// One logo image, chosen from Files or the Mac: its address with Change…
 /// and Remove, or a note about what's used without it and Choose….
 struct LogoFileRow: View {
+    /// What a dark mode logo does with the site's appearance (Configuration
+    /// → Colors), for the caption under its row. Used by the top bar and footer.
+    static func darkNote(hasDark: Bool, appearance: ThemeSettings.Appearance) -> String? {
+        switch appearance {
+        case .auto:
+            return hasDark ? "Shown instead of the main logo to visitors whose device is set to dark."
+                : "Add a version of your logo for dark backgrounds, shown to visitors whose device is set to dark."
+        case .dark:
+            return hasDark ? "Your site is always dark, so this logo is the one shown." : nil
+        case .light:
+            return hasDark ? "Your site is always light (Configuration → Colors), so this logo isn't shown." : nil
+        }
+    }
+
     let title: String
     @Binding var path: String
     let emptyText: String

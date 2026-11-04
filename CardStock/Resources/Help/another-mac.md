@@ -16,6 +16,8 @@ When a site is linked to GitHub, GitHub keeps every copy in step.
 
 The site arrives with its full history and its GitHub link, ready to edit and publish.
 
+> Use **Open from GitHub…** rather than linking a second copy of the site to the same repository. Linking a copy that wasn't made from GitHub's replaces what's there with that copy (CardStock asks first).
+
 > Downloaded the site as a ZIP from GitHub instead? That works too. A ZIP doesn't include the site's history, so CardStock sets it up again from GitHub the first time you publish.
 
 ## Day to day

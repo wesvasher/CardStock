@@ -42,9 +42,12 @@ final class AppModel {
     }
     var errorMessage: String? {
         didSet {
-            if let errorMessage, errorMessage != oldValue { log(.error, errorMessage) }
+            if let errorMessage, errorMessage != oldValue { log(.error, errorMessage, detail: errorDetail) }
+            errorDetail = nil
         }
     }
+    /// Logged with the next `errorMessage`: the raw text behind a friendlier one.
+    private var errorDetail: String?
     var statusMessage: String?
     /// Bumped whenever content changes so the preview can refresh.
     private(set) var revision = 0 { didSet { scheduleHealthCount() } }
@@ -1535,9 +1538,23 @@ final class AppModel {
         }
     }
 
-    /// Links this site to an existing, empty repo.
+    /// A repository with other files in it, waiting for the user to choose
+    /// whether this site replaces them (`GitHubSetupSection` asks).
+    struct ReplaceRequest: Identifiable, Equatable {
+        let id = UUID()
+        var repo: String
+        var branch: String
+        var account: String
+        /// It holds a CardStock site, probably this one from another computer.
+        var holdsSite: Bool
+    }
+    var replaceRequest: ReplaceRequest?
+
+    /// Links this site to a repo that's already on GitHub. An empty one, or
+    /// one with this site's own history, is linked right away; one with other
+    /// files sets `replaceRequest` so the user can choose.
     func linkExistingRepo(_ fullName: String, account login: String) async {
-        guard let token = tokens[login] else { return }
+        guard let root = site?.root, let token = tokens[login] else { return }
         var name = fullName.trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "https://github.com/", with: "")
         if name.hasSuffix(".git") { name.removeLast(4) }
@@ -1545,24 +1562,50 @@ final class AppModel {
         await perform("Checking repository…") {
             let client = GitHubClient(token: token)
             let repo = try await client.repo(name)
-            guard try await client.isEmpty(repo.fullName) else {
-                throw SiteError("\(repo.fullName) already has files in it. For now, CardStock can only link to an empty repository.")
+            let branch = repo.defaultBranch ?? "main"
+            let link = ProjectSettings.GitHubLink(repo: repo.fullName, branch: branch)
+            switch try await Publisher(root: root, token: token).contents(of: link) {
+            case .empty:
+                try await self.finishLink(repo: repo.fullName, account: login)
+            case .sameSite:
+                try await self.finishLink(repo: repo.fullName, branch: branch, account: login)
+            case .otherFiles:
+                self.replaceRequest = ReplaceRequest(
+                    repo: repo.fullName, branch: branch, account: login,
+                    holdsSite: await client.hasSite(repo.fullName))
             }
-            try await self.finishLink(repo: repo.fullName, account: login)
         }
     }
 
-    private func finishLink(repo: String, account login: String) async throws {
+    /// Links to the repository in `replaceRequest`, putting this site's files
+    /// in place of the ones there (GitHub keeps them in the history).
+    func replaceAndLink(_ request: ReplaceRequest) async {
+        replaceRequest = nil
+        await perform("Linking…") {
+            try await self.finishLink(repo: request.repo, branch: request.branch,
+                                      account: request.account, replacing: true)
+        }
+    }
+
+    private func finishLink(repo: String, branch: String? = nil, account login: String,
+                            replacing: Bool = false) async throws {
         guard let root = site?.root, let token = tokens[login] else { return }
         let user = try await user(for: login)
         saveNow()
         workMessage = "Uploading site to GitHub…"
-        _ = try await Publisher(root: root, token: token).link(repo: repo, user: user)
+        _ = try await Publisher(root: root, token: token)
+            .link(repo: repo, branch: branch, user: user, replacing: replacing)
         project = ProjectSettings.load(from: root)
         chosenAccount = LocalData.gitHubAccount(in: root)
         markPublished()
         refreshStatus(fetch: false)
-        log(.publish, "Linked to \(repo) on GitHub and published", link: "https://github.com/\(repo)")
+        if replacing {
+            log(.publish, "Linked to \(repo) on GitHub and replaced its files with this site",
+                detail: "The earlier files are still in the repository's history.",
+                link: "https://github.com/\(repo)")
+        } else {
+            log(.publish, "Linked to \(repo) on GitHub and published", link: "https://github.com/\(repo)")
+        }
         statusMessage = "Linked to \(repo) and published."
         checkHostingBuild(after: .now)
     }
@@ -1643,9 +1686,28 @@ final class AppModel {
             try await work()
             return true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = await describe(error)
             return false
         }
+    }
+
+    /// An error in words for the alert. Network trouble on the way to GitHub
+    /// gets a plain explanation (git's own text goes in the log), plus what
+    /// GitHub's status page says when GitHub is the problem.
+    func describe(_ error: Error) async -> String {
+        guard let failure = error as? Git.Failure, let problem = failure.problem else {
+            return error.localizedDescription
+        }
+        errorDetail = failure.rawDescription
+        var text = failure.localizedDescription
+        if problem == .gitHubTrouble {
+            if let status = await GitHubClient.serviceStatus() {
+                text += "\n\nGitHub's status page (githubstatus.com) reports: \(status)."
+            } else {
+                text += "\n\nIf it keeps happening, check githubstatus.com."
+            }
+        }
+        return text
     }
 
     // MARK: - Scheduled publishing

@@ -17,7 +17,50 @@ struct Git: Sendable {
     struct Failure: LocalizedError {
         var command: String
         var message: String
-        var errorDescription: String? { "git \(command) failed: \(message)" }
+
+        /// A network problem behind the failure, for commands that talk to GitHub.
+        var problem: NetworkProblem? {
+            Git.networkCommands.contains(command) ? Git.networkProblem(in: message) : nil
+        }
+
+        /// git's own words, for the activity log.
+        var rawDescription: String { "git \(command) failed: \(message)" }
+
+        var errorDescription: String? {
+            switch problem {
+            case .gitHubTrouble:
+                command == "push"
+                    ? "GitHub had a problem on its side and didn't take your changes. Nothing is wrong with your site, and nothing was lost: your changes are saved on this Mac. Try again in a few minutes."
+                    : "GitHub had a problem on its side and couldn't send the latest version. Nothing is wrong with your site, and nothing on this Mac was changed. Try again in a few minutes."
+            case .offline:
+                "Couldn't reach GitHub. Check that this Mac is connected to the internet, then try again. Nothing was lost."
+            case nil:
+                rawDescription
+            }
+        }
+    }
+
+    /// Trouble getting to GitHub that has nothing to do with the site.
+    enum NetworkProblem: Sendable, Equatable {
+        /// GitHub answered with a server error (5xx): an outage or a hiccup.
+        case gitHubTrouble
+        /// GitHub couldn't be reached at all.
+        case offline
+    }
+
+    static let networkCommands: Set<String> = ["push", "fetch", "pull", "ls-remote", "clone"]
+
+    /// What git's error text says went wrong on the network, if anything.
+    static func networkProblem(in message: String) -> NetworkProblem? {
+        let text = message.lowercased()
+        let server = ["internal server error", "service unavailable", "bad gateway", "gateway time",
+                      "returned error: 50", "http 50", "remote: unexpected error", "temporarily unavailable"]
+        if server.contains(where: text.contains) { return .gitHubTrouble }
+        let offline = ["could not resolve host", "failed to connect to", "network is unreachable",
+                       "couldn't connect to server", "operation timed out", "connection timed out",
+                       "no route to host", "internet connection appears to be offline"]
+        if offline.contains(where: text.contains) { return .offline }
+        return nil
     }
 
     static let executable = URL(filePath: "/usr/bin/git")

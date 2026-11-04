@@ -836,8 +836,10 @@ extension SiteRenderer {
     func footerLogo(_ c: SiteConfig) -> TemplateValue {
         let logo = c.footer.logo
         guard logo.hasImage else { return .dict([:]) }
-        var src = logo.image.trimmingCharacters(in: .whitespaces)
-        if !src.hasPrefix("/") && !src.contains("://") { src = "/" + src }
+        // Always-dark sites show the dark version outright (Auto swaps it
+        // in later, in `insertDarkLogos`).
+        let dark = Self.logoSource(logo.darkImage)
+        let src = site.theme?.appearance == .dark && !dark.isEmpty ? dark : Self.logoSource(logo.image)
         var style: [String] = []
         if logo.width > 0 { style.append("width:\(logo.width)px") }
         if logo.height > 0 { style.append("height:\(logo.height)px") }
@@ -940,23 +942,36 @@ extension SiteRenderer {
         ])
     }
 
-    /// With Auto appearance, wraps the top bar's logos in a `<picture>`
-    /// whose dark source shows on devices set to dark. Done here rather
-    /// than in base.html so sites with older themes get it too.
+    /// A logo's address for a page: trimmed, starting with / unless it's a
+    /// full web address. Empty stays empty.
+    static func logoSource(_ path: String) -> String {
+        let path = path.trimmingCharacters(in: .whitespaces)
+        guard !path.isEmpty else { return "" }
+        return path.hasPrefix("/") || path.contains("://") ? path : "/" + path
+    }
+
+    /// With Auto appearance, wraps the top bar's and footer's logos in a
+    /// `<picture>` whose dark source shows on devices set to dark. Done here
+    /// rather than in base.html so sites with older themes get it too.
     func insertDarkLogos(into html: String) -> String {
+        guard (site.theme?.appearance ?? .auto) == .auto else { return html }
         let h = site.config.header
-        guard h.isLogoShown, (site.theme?.appearance ?? .auto) == .auto else { return html }
-        func src(_ path: String) -> String {
-            let path = path.trimmingCharacters(in: .whitespaces)
-            guard !path.isEmpty else { return "" }
-            return path.hasPrefix("/") || path.contains("://") ? path : "/" + path
+        let footer = site.config.footer.logo
+        // Each logo's `<img` start, as base.html writes it, and its dark version.
+        var logos: [(start: String, light: String, dark: String)] = []
+        if h.isLogoShown {
+            logos.append((#"<img class="logo logo-large" src=""#, h.logo, h.darkLogo))
+            logos.append((#"<img class="logo logo-compact" src=""#, h.compactLogo, h.darkCompactLogo))
+        }
+        if site.config.footer.enabled && footer.hasImage {
+            logos.append((#"<img class="footer-logo" src=""#, footer.image, footer.darkImage))
         }
         var html = html
         var changed = false
-        for (cls, light, dark) in [("logo-large", h.logo, h.darkLogo), ("logo-compact", h.compactLogo, h.darkCompactLogo)] {
-            let light = src(light), dark = src(dark)
+        for (prefix, light, dark) in logos {
+            let light = Self.logoSource(light), dark = Self.logoSource(dark)
             guard !light.isEmpty, !dark.isEmpty, dark != light else { continue }
-            let start = #"<img class="logo \#(cls)" src="\#(escapeHTML(light))""#
+            let start = prefix + escapeHTML(light) + "\""
             var from = html.startIndex
             while let open = html.range(of: start, range: from..<html.endIndex),
                   let close = html.range(of: ">", range: open.upperBound..<html.endIndex) {
@@ -968,7 +983,8 @@ extension SiteRenderer {
                 changed = true
             }
         }
-        // The picture steps aside so the image stays in the logo's grid.
+        // The picture steps aside so the image stays in the logo's grid
+        // (or the footer's row).
         if changed, let head = html.range(of: "</head>", options: .caseInsensitive) {
             html.insert(contentsOf: "<style>.logo-picture { display: contents; }</style>\n", at: head.lowerBound)
         }

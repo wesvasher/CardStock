@@ -88,6 +88,37 @@ struct FooterTests {
         #expect(footer(html)?.contains("footer-logo") == false)
     }
 
+    @Test func darkFooterLogo() throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let root = dir.appending(path: "Site")
+        try StarterSite.create(at: root, title: "Site")
+        var site = try Site.load(from: root)
+        site.config.footer.logo.image = "/media/files/logo.png"
+        site.config.footer.logo.darkImage = "media/files/logo-dark.png"
+        site.theme = site.theme ?? ThemeSettings()
+
+        // Auto: swapped in on devices set to dark, in both placements.
+        site.theme?.appearance = .auto
+        for placement in SiteConfig.Footer.Logo.Placement.allCases {
+            site.config.footer.logo.placement = placement
+            let html = try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
+            #expect(html.contains(#"<picture class="logo-picture"><source media="(prefers-color-scheme: dark)" srcset="/media/files/logo-dark.png"><img class="footer-logo" src="/media/files/logo.png""#))
+            #expect(html.components(separatedBy: ".logo-picture { display: contents; }").count == 2)
+        }
+
+        // Always dark: the dark logo outright. Always light: never.
+        site.theme?.appearance = .dark
+        var html = try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
+        #expect(html.contains(#"<img class="footer-logo" src="/media/files/logo-dark.png""#))
+        #expect(!html.contains("<picture"))
+        site.theme?.appearance = .light
+        html = try SiteRenderer(site: site).render(path: "/pages/about/") ?? ""
+        #expect(!html.contains("logo-dark") && !html.contains("<picture"))
+
+        let old = try JSONDecoder().decode(SiteConfig.self, from: Data(#"{"footer":{"logo":{"image":"/a.png"}}}"#.utf8))
+        #expect(old.footer.logo.darkImage.isEmpty)
+    }
+
     @Test func readsLinksFromALinkMenuPage() {
         let text = """
         [My Channel](https://www.youtube.com/@ann)

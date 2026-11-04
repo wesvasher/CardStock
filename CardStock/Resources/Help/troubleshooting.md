@@ -30,6 +30,14 @@ Tokens can expire. [Make a new one](help:connect-github) on GitHub, then open **
 
 If the site publishes with the wrong account, pick the right one under **Publishing as** on the [Publishing](cardstock:publishing) page.
 
+### "GitHub had a problem on its side"
+
+GitHub is having an outage or a brief hiccup. Your site is fine and your changes are saved on this Mac. Wait a few minutes and publish again. CardStock shows what GitHub's status page reports, and [githubstatus.com](https://www.githubstatus.com) says when it's fixed. git's full message is in the Activity Log.
+
+### "Couldn't reach GitHub"
+
+This Mac isn't connected to the internet, or something is blocking GitHub. Check the connection and try again. Nothing is lost while you're offline: keep editing and publish later.
+
 ### Publishing stopped because of a conflict
 
 The same post was changed on two Macs. CardStock didn't change anything. The purple banner on the [Publishing](cardstock:publishing) page lists the posts both Macs changed. Click **Use GitHub's Version…**: your edits here go to the Trash as a copy named "(edits from this Mac)". Then get the latest and redo your edits.
