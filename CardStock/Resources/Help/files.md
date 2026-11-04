@@ -1,7 +1,7 @@
 ---
 title: Manage your files
 category: Images
-summary: See every image and file, reuse them, and delete ones you don't need.
+summary: See every image and file, organize them in folders, reuse them, and delete ones you don't need.
 order: 2
 ---
 
@@ -13,7 +13,21 @@ Open [Files](cardstock:files) in the sidebar. It lists everything in your site's
 - Drag files from Finder onto the Files page, or
 - Copy files into the site's `media` folder in Finder.
 
-Files added on the Files page go into `media/files`. Images added in the editor go into a folder for their page.
+Files added on the Files page go into the folder you're looking at. Images added in the editor go into a folder for their page.
+
+## Organize files in folders
+
+The Files page shows one folder at a time, starting at the top of your `media` folder. Folders come first, then the files in this folder. The bar above the list shows where you are, like **Files › photos › 2026**: click any part to go back up.
+
+- **Open a folder**: double-click it.
+- **Make a folder**: click **New Folder…** at the bottom. It goes inside the folder you're looking at, so you can make folders inside folders.
+- **Move files**: drag them onto a folder, or onto a part of the bar above the list. Or right-click them and choose **Move To**. Select several first to move them together.
+- **Rename, move or delete a folder**: right-click it. **Move to Trash…** puts the folder and everything in it in your Mac's Trash.
+- **Find a file anywhere**: searching or filtering looks in every folder, and each file shows which folder it's in.
+
+Folder names become part of your files' web addresses (`/media/photos/2026/beach.jpg`), so they use lowercase letters, numbers and dashes: "Product Photos" becomes `product-photos`.
+
+When a file or folder moves or is renamed, CardStock updates every link to it in your pages, site settings and theme, and its tags go with it, so nothing on your site breaks. An optimized image's smaller version moves with it. Publish to update your live site. Folders you make or change in Finder show up here too, but links aren't updated for moves made in Finder.
 
 ## Use a file in a page
 

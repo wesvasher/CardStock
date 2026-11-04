@@ -146,12 +146,13 @@ enum MediaLibrary {
 
     // MARK: Adding and removing
 
-    /// Copies files into media/files/ with web-safe names, never
-    /// overwriting. Returns the new paths.
+    /// Copies files into `folder` (media/files/ unless given) with
+    /// web-safe names, never overwriting. Returns the new paths.
     @discardableResult
-    static func addFiles(_ urls: [URL], to root: URL) throws -> [String] {
+    static func addFiles(_ urls: [URL], to root: URL, folder relative: String = uploadsFolder) throws -> [String] {
         let fm = FileManager.default
-        let folder = root.appending(path: uploadsFolder)
+        let relative = relative.isEmpty ? uploadsFolder : relative
+        let folder = root.appending(path: relative)
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
         var added: [String] = []
         for source in urls {
@@ -166,7 +167,7 @@ enum MediaLibrary {
                 n += 1
             }
             try fm.copyItem(at: source, to: folder.appending(path: name(candidate)))
-            added.append("\(uploadsFolder)/\(name(candidate))")
+            added.append("\(relative)/\(name(candidate))")
         }
         return added
     }

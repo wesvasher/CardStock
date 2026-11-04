@@ -194,8 +194,9 @@ struct TagsView: View {
         }
     }
 
-    /// Opens the Files page with the file selected.
+    /// Opens the Files page in the file's folder, with the file selected.
     private func showFile(_ path: String) {
+        model.filesFolder = MediaLibrary.parent(of: path)
         model.selectedFileIDs = [path]
         model.selection = .files
     }

@@ -17,15 +17,37 @@ struct FilesView: View {
     @State private var sort = FileSort.newest
     @State private var pendingDelete: [MediaFile] = []
     @State private var isDropTargeted = false
+    /// The folder being named: a new one (in `namingParent`) or a rename.
+    @State private var naming: FolderNaming?
+    @State private var folderName = ""
+    @State private var pendingFolderDelete: String?
+
+    private enum FolderNaming: Equatable {
+        case new(parent: String)
+        case rename(String)
+    }
+
+    /// The folder shown; `media` is the top.
+    private var folder: String { model.filesFolder }
+
+    /// Without a search or filter, the list shows one folder at a time.
+    private var isBrowsing: Bool { query.isEmpty && filter == .all }
+
+    /// The folders in the shown folder, by name (none while searching).
+    private var subfolders: [String] {
+        guard isBrowsing else { return [] }
+        return model.mediaFolders.filter { MediaLibrary.parent(of: $0) == folder }
+    }
 
     private var shown: [MediaFile] {
-        FileFilter.apply(model.files, filter: filter, sort: sort, query: query)
+        let files = isBrowsing ? model.files.filter { $0.folder == folder } : model.files
+        return FileFilter.apply(files, filter: filter, sort: sort, query: query)
     }
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            if model.files.isEmpty {
+            if model.files.isEmpty && model.mediaFolders.isEmpty {
                 Divider()
                 ContentUnavailableView {
                     Label("No Files Yet", systemImage: "folder")
@@ -35,7 +57,17 @@ struct FilesView: View {
                     Button("Add Files…", action: chooseFiles)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if shown.isEmpty {
+            } else if isBrowsing && shown.isEmpty && subfolders.isEmpty {
+                Divider()
+                ContentUnavailableView {
+                    Label(folder == MediaLibrary.folderName ? "No Files Here" : "This Folder Is Empty", systemImage: "folder")
+                } description: {
+                    Text("Drag files here, add them, or move files into this folder with Move To in their menu.")
+                } actions: {
+                    Button("Add Files…", action: chooseFiles)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if shown.isEmpty && subfolders.isEmpty {
                 Divider()
                 ContentUnavailableView {
                     Label("No Matching Files", systemImage: "magnifyingglass")
@@ -67,7 +99,7 @@ struct FilesView: View {
         }
         .dropDestination(for: URL.self) { urls, _ in
             let files = urls.filter(\.isFileURL)
-            model.addFiles(files)
+            model.addFiles(files, to: folder)
             return !files.isEmpty
         } isTargeted: { isDropTargeted = $0 }
         .onAppear {
@@ -88,6 +120,122 @@ struct FilesView: View {
         } message: {
             Text(deleteMessage)
         }
+        .alert(isRenaming ? "Rename Folder" : "New Folder",
+               isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
+            TextField("Name", text: $folderName)
+            Button("Cancel", role: .cancel) { naming = nil }
+            Button(isRenaming ? "Rename" : "Create") { finishNaming() }
+                .disabled(MediaLibrary.folderName(for: folderName) == nil)
+        } message: {
+            Text(namingMessage)
+        }
+        .confirmationDialog(folderDeleteTitle, isPresented: Binding(get: { pendingFolderDelete != nil },
+                                                                    set: { if !$0 { pendingFolderDelete = nil } })) {
+            Button("Move to Trash", role: .destructive) {
+                if let path = pendingFolderDelete { model.trashFolder(path) }
+                pendingFolderDelete = nil
+            }
+        } message: {
+            Text(folderDeleteMessage)
+        }
+    }
+
+    // MARK: - Folders
+
+    private var isRenaming: Bool {
+        if case .rename = naming { return true }
+        return false
+    }
+
+    private func startNewFolder() {
+        folderName = ""
+        naming = .new(parent: folder)
+    }
+
+    private func startRename(_ path: String) {
+        folderName = MediaLibrary.name(of: path)
+        naming = .rename(path)
+    }
+
+    private var namingMessage: String {
+        let address = MediaLibrary.folderName(for: folderName).map { "Its files' addresses will start with /\(namingParent)/\($0)/." }
+            ?? "Folder names become part of your files' addresses, so they use lowercase letters, numbers and dashes."
+        if case .rename = naming {
+            return address + " Links to its files in your pages are updated."
+        }
+        return address
+    }
+
+    private var namingParent: String {
+        switch naming {
+        case .new(let parent): parent
+        case .rename(let path): MediaLibrary.parent(of: path)
+        case nil: folder
+        }
+    }
+
+    private func finishNaming() {
+        switch naming {
+        case .new(let parent):
+            if let path = model.newFolder(folderName, in: parent) { model.filesFolder = path }
+        case .rename(let path):
+            model.renameFolder(path, to: folderName)
+        case nil:
+            break
+        }
+        naming = nil
+    }
+
+    private var folderDeleteTitle: String {
+        "Move “\(pendingFolderDelete.map(MediaLibrary.name(of:)) ?? "")” to the Trash?"
+    }
+
+    private var folderDeleteMessage: String {
+        guard let path = pendingFolderDelete else { return "" }
+        let inside = model.files.filter { MediaLibrary.isInside($0.path, path) }
+        guard !inside.isEmpty else { return "It's empty. It goes to your Mac's Trash." }
+        return "It and the \(inside.count) \(inside.count == 1 ? "file" : "files") in it go to your Mac's Trash. "
+            + Self.deleteMessage(for: inside)
+    }
+
+    /// Files and folders being dragged, as one string (`cardstock-media:` and a path per line).
+    private static let dragPrefix = "cardstock-media:"
+
+    private func dragPayload(for paths: [String]) -> String {
+        Self.dragPrefix + paths.joined(separator: "\n")
+    }
+
+    /// Moves dropped files and folders into `destination`.
+    private func drop(_ payloads: [String], into destination: String) -> Bool {
+        let paths = payloads.flatMap { text -> [String] in
+            guard text.hasPrefix(Self.dragPrefix) else { return [] }
+            return text.dropFirst(Self.dragPrefix.count).split(separator: "\n").map(String.init)
+        }
+        guard !paths.isEmpty else { return false }
+        let folders = paths.filter { model.mediaFolders.contains($0) }
+        for path in folders where !MediaLibrary.isInside(destination, path) {
+            model.moveFolder(path, into: destination)
+        }
+        let files = model.files.filter { paths.contains($0.path) && $0.folder != destination }
+        if !files.isEmpty { model.moveFiles(files, to: destination) }
+        return true
+    }
+
+    /// Every folder, indented by depth, for Move To menus.
+    @ViewBuilder
+    private func moveMenu(excluding: @escaping (String) -> Bool, move: @escaping (String) -> Void) -> some View {
+        Menu("Move To") {
+            Button("Files (top level)") { move(MediaLibrary.folderName) }
+                .disabled(excluding(MediaLibrary.folderName))
+            if !model.mediaFolders.isEmpty { Divider() }
+            ForEach(model.mediaFolders, id: \.self) { path in
+                let depth = path.split(separator: "/").count - 2
+                Button(String(repeating: "    ", count: max(depth, 0)) + MediaLibrary.name(of: path)) { move(path) }
+                    .disabled(excluding(path))
+            }
+            Divider()
+            Button("New Folder…") { startNewFolder() }
+        }
     }
 
     // MARK: - Footer
@@ -104,7 +252,17 @@ struct FilesView: View {
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .capsule)
-            .help("Copy files into the site's media/files folder. You can also drag files onto this page.")
+            .help("Copy files into this folder. You can also drag files onto this page.")
+            Button(action: startNewFolder) {
+                Label("New Folder…", systemImage: "folder.badge.plus")
+                    .font(.callout.weight(.medium))
+                    .padding(.horizontal, 12)
+                    .frame(height: 30)
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: .capsule)
+            .help("Make a folder inside this one")
             Spacer()
         }
         .padding(.horizontal, 16)
@@ -120,16 +278,17 @@ struct FilesView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Files")
                     .font(.title2.bold())
-                Text("Everything in your site's media folder. Copy a file's Markdown and paste it into a page to use it.")
+                Text("Everything in your site's media folder, in folders you can make and move things between. Links to a file stay working when it moves.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack(spacing: 10) {
-                SearchField(query: $query)
+                SearchField(query: $query, prompt: "Search all files")
                 FileFilterMenu(filter: $filter, sort: $sort)
             }
+            if isBrowsing { pathBar }
             HStack(spacing: 10) {
                 Text(summary)
                     .font(.caption)
@@ -184,18 +343,44 @@ struct FilesView: View {
     /// A standard macOS list: click selects, ⌘- and ⇧-click select more,
     /// double-click opens, and right-click acts on the selection.
     private var table: some View {
-        List(shown, selection: selectionBinding) { file in
-            row(file)
-                .tag(file.id)
+        List(selection: selectionBinding) {
+            ForEach(subfolders, id: \.self) { path in
+                folderRow(path)
+                    .tag(Self.folderID(path))
+                    .draggable(dragPayload(for: [path]))
+                    .dropDestination(for: String.self) { items, _ in drop(items, into: path) }
+            }
+            ForEach(shown) { file in
+                row(file)
+                    .tag(file.id)
+                    .draggable(dragPayload(for: selection.contains(file.id) ? files(selection).map(\.path) : [file.path])) {
+                        dragPreview(file)
+                    }
+            }
         }
         .listStyle(.inset)
         .scrollContentBackground(.hidden)
         .contextMenu(forSelectionType: MediaFile.ID.self) { ids in
-            menu(for: files(ids))
+            if let path = folders(ids).first, files(ids).isEmpty {
+                folderMenu(path)
+            } else {
+                menu(for: files(ids))
+            }
         } primaryAction: { ids in
-            files(ids).forEach(open)
+            if let path = folders(ids).first {
+                open(folder: path)
+            } else {
+                files(ids).forEach(open)
+            }
         }
-        .onDeleteCommand { pendingDelete = files(selection) }
+        .onDeleteCommand {
+            let chosen = files(selection)
+            if !chosen.isEmpty {
+                pendingDelete = chosen
+            } else if let path = folders(selection).first {
+                pendingFolderDelete = path
+            }
+        }
         .onCopyCommand {
             // ⌘C copies the selected files' Markdown.
             let chosen = files(selection)
@@ -231,7 +416,8 @@ struct FilesView: View {
 
     private func rowDetails(_ file: MediaFile) -> String {
         let size = ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file)
-        var parts = [size, file.folder]
+        var parts = [size]
+        if !isBrowsing { parts.append(file.folder) }
         if file.added != .distantPast { parts.insert(file.added.formatted(date: .abbreviated, time: .omitted), at: 0) }
         if !file.tags.isEmpty { parts.append(file.tags.map { "#" + $0 }.joined(separator: " ")) }
         return parts.joined(separator: " · ")
@@ -239,6 +425,107 @@ struct FilesView: View {
 
     private func files(_ ids: Set<MediaFile.ID>) -> [MediaFile] {
         shown.filter { ids.contains($0.id) }
+    }
+
+    /// List ids for folder rows, kept apart from file paths.
+    private static func folderID(_ path: String) -> String { "folder:" + path }
+
+    private func folders(_ ids: Set<MediaFile.ID>) -> [String] {
+        subfolders.filter { ids.contains(Self.folderID($0)) }
+    }
+
+    private func open(folder path: String) {
+        withAnimation(.snappy(duration: 0.2)) {
+            model.filesFolder = path
+            selection = []
+        }
+    }
+
+    /// A folder: its icon, name and what's in it.
+    private func folderRow(_ path: String) -> some View {
+        let files = model.files.filter { MediaLibrary.isInside($0.path, path) }
+        let folders = model.mediaFolders.filter { MediaLibrary.parent(of: $0) == path }.count
+        var parts: [String] = []
+        if files.isEmpty && folders == 0 { parts.append("Empty") }
+        if !files.isEmpty {
+            parts.append("\(files.count) \(files.count == 1 ? "file" : "files")")
+            parts.append(ByteCountFormatter.string(fromByteCount: files.reduce(0) { $0 + $1.size }, countStyle: .file))
+        }
+        if folders > 0 { parts.append("\(folders) \(folders == 1 ? "folder" : "folders")") }
+        return HStack(spacing: 10) {
+            Image(systemName: "folder.fill")
+                .font(.system(size: 26))
+                .foregroundStyle(.tint)
+                .frame(width: 36, height: 36)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(MediaLibrary.name(of: path)).lineLimit(1)
+                Text(parts.joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .help("/\(path)/ · Double-click to open. Drop files here to move them in.")
+    }
+
+    private func dragPreview(_ file: MediaFile) -> some View {
+        let count = selection.contains(file.id) ? max(files(selection).count, 1) : 1
+        return HStack(spacing: 8) {
+            FileThumbnail(file: file, size: 28)
+            Text(count == 1 ? file.name : "\(count) files").lineLimit(1)
+        }
+        .padding(6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// Files › photos › 2026: each part opens that folder, and takes dropped files.
+    private var pathBar: some View {
+        let parts = folder.split(separator: "/").map(String.init)
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 4) {
+                ForEach(parts.indices, id: \.self) { i in
+                    let path = parts[...i].joined(separator: "/")
+                    if i > 0 {
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    PathCrumb(title: i == 0 ? "Files" : parts[i], systemImage: i == 0 ? "photo.on.rectangle" : "folder",
+                              isCurrent: path == folder) {
+                        open(folder: path)
+                    } onDrop: { items in
+                        drop(items, into: path)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func folderMenu(_ path: String) -> some View {
+        Button("Open") { open(folder: path) }
+        Button("Rename…") { startRename(path) }
+        moveMenu(excluding: { MediaLibrary.isInside($0, path) || $0 == MediaLibrary.parent(of: path) }) { destination in
+            model.moveFolder(path, into: destination)
+        }
+        Divider()
+        Button("Copy Address") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString("/" + path + "/", forType: .string)
+            model.showToast("Copied /\(path)/.")
+        }
+        Button("Show in Finder") {
+            guard let root = model.site?.root else { return }
+            NSWorkspace.shared.activateFileViewerSelecting([root.appending(path: path)])
+        }
+        Divider()
+        Button("Move to Trash…", role: .destructive) { pendingFolderDelete = path }
     }
 
     @ViewBuilder
@@ -253,6 +540,9 @@ struct FilesView: View {
                     NSPasteboard.general.setString("/" + file.path, forType: .string)
                     model.showToast("Copied /\(file.path).")
                 }
+            }
+            moveMenu(excluding: { destination in files.allSatisfy { $0.folder == destination } }) { destination in
+                model.moveFiles(files, to: destination)
             }
             Divider()
             Button("Open") { files.forEach(open) }
@@ -297,7 +587,33 @@ struct FilesView: View {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK else { return }
-        model.addFiles(panel.urls)
+        model.addFiles(panel.urls, to: folder)
+    }
+}
+
+/// One part of the Files page's path bar: a folder to open, and to drop
+/// files on. Lights up while something's dragged over it.
+private struct PathCrumb: View {
+    let title: String
+    let systemImage: String
+    let isCurrent: Bool
+    let action: () -> Void
+    let onDrop: ([String]) -> Bool
+    @State private var isTargeted = false
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.callout.weight(isCurrent ? .semibold : .regular))
+                .foregroundStyle(isCurrent ? Color.primary : Color.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(isTargeted ? Color.accentColor.opacity(0.18) : .clear, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .dropDestination(for: String.self) { items, _ in onDrop(items) } isTargeted: { isTargeted = $0 }
+        .help(isCurrent ? "This folder" : "Open \(title). Drop files here to move them.")
     }
 }
 

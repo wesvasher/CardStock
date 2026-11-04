@@ -60,6 +60,10 @@ final class AppModel {
     private(set) var files: [MediaFile] = [] { didSet { scheduleHealthCount() } }
     /// Files selected on the Files page; the preview column shows them.
     var selectedFileIDs: Set<MediaFile.ID> = []
+    /// Every folder inside media/ (`media/photos`, `media/photos/2026`).
+    private(set) var mediaFolders: [String] = []
+    /// The folder the Files page shows; `media` is the top.
+    var filesFolder = MediaLibrary.folderName
     /// The page selected on the Pages view; the preview column shows it.
     var selectedPageID: URL?
     /// The page shown in Configuration (Site Details, Fonts, Footer, …).
@@ -196,6 +200,7 @@ final class AppModel {
             LocalData.prepare(in: url)
             chosenAccount = LocalData.gitHubAccount(in: url)
             selectedFileIDs = []
+            filesFolder = MediaLibrary.folderName
             selectedPageID = nil
             imageUndo = [:]
             storage = nil
@@ -1013,6 +1018,112 @@ final class AppModel {
         }
         let scanned = MediaLibrary.scan(site)
         if scanned != files { files = scanned }
+        let folders = MediaLibrary.folders(in: site.root)
+        if folders != mediaFolders { mediaFolders = folders }
+        // The folder being shown was renamed or removed (here or in Finder).
+        if filesFolder != MediaLibrary.folderName && !folders.contains(filesFolder) {
+            filesFolder = MediaLibrary.folderName
+        }
+    }
+
+    // MARK: - Folders in media/
+
+    /// Makes a folder inside `parent` and returns its path.
+    @discardableResult
+    func newFolder(_ name: String, in parent: String) -> String? {
+        guard let root = site?.root else { return nil }
+        do {
+            let path = try MediaLibrary.makeFolder(name, in: parent, root: root)
+            log(.edit, "Made the folder \(path)")
+            refreshFiles()
+            return path
+        } catch {
+            errorMessage = "Couldn't make the folder: \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    /// Moves files into a folder, updating links to them.
+    func moveFiles(_ files: [MediaFile], to folder: String) {
+        guard let root = site?.root, !files.isEmpty else { return }
+        finishMove("Couldn't move the files") {
+            (try MediaLibrary.move(files, to: folder, root: root), nil)
+        } done: { moves in
+            let count = files.filter { moves[$0.path] != nil }.count
+            guard count > 0 else { return nil }
+            let place = folder == MediaLibrary.folderName ? "Files" : MediaLibrary.name(of: folder)
+            return count == 1 ? "Moved \(files[0].name) to \(place)." : "Moved \(count) files to \(place)."
+        }
+    }
+
+    func renameFolder(_ folder: String, to name: String) {
+        guard let root = site?.root else { return }
+        finishMove("Couldn't rename the folder") {
+            let result = try MediaLibrary.renameFolder(folder, to: name, root: root)
+            return (result.moves, (folder, result.path))
+        } done: { _ in "Renamed the folder." }
+    }
+
+    func moveFolder(_ folder: String, into destination: String) {
+        guard let root = site?.root else { return }
+        finishMove("Couldn't move the folder") {
+            let result = try MediaLibrary.moveFolder(folder, into: destination, root: root)
+            return (result.moves, (folder, result.path))
+        } done: { _ in
+            "Moved \(MediaLibrary.name(of: folder)) to \(destination == MediaLibrary.folderName ? "Files" : MediaLibrary.name(of: destination))."
+        }
+    }
+
+    /// Moves a folder and everything in it to the Mac's Trash.
+    func trashFolder(_ folder: String) {
+        guard let root = site?.root else { return }
+        let inside = files.filter { MediaLibrary.isInside($0.path, folder) }
+        do {
+            try MediaLibrary.trashFolder(folder, root: root)
+            let tagged = inside.filter { !$0.tags.isEmpty }
+            if !tagged.isEmpty { updateFileTags { tags in tagged.forEach { tags[$0.path] = [] } } }
+            log(.edit, "Moved the folder \(folder) to the Trash", detail: inside.isEmpty ? nil : inside.map(\.path).joined(separator: "\n"))
+            showToast("Moved \(MediaLibrary.name(of: folder)) to the Trash.")
+        } catch {
+            errorMessage = "Couldn't move the folder to the Trash: \(error.localizedDescription)"
+        }
+        if MediaLibrary.isInside(filesFolder, folder) { filesFolder = MediaLibrary.parent(of: folder) }
+        selectedFileIDs.subtract(inside.map(\.id))
+        refreshFiles()
+        revision += 1
+    }
+
+    /// Saves, moves (files, or a folder: `folderMove` is its old and new
+    /// path), rewrites links to what moved, then reloads the site so open
+    /// pages have the new links. Keeps the Files page in the same folder,
+    /// following a folder that moved, and keeps the selection.
+    private func finishMove(_ failure: String,
+                            _ move: () throws -> (moves: [String: String], folderMove: (from: String, to: String)?),
+                            done message: ([String: String]) -> String?) {
+        guard let root = site?.root else { return }
+        saveNow()
+        var folder = filesFolder
+        let selected = selectedFileIDs
+        do {
+            let (moves, folderMove) = try move()
+            if let (from, to) = folderMove {
+                if MediaLibrary.isInside(folder, from) { folder = to + folder.dropFirst(from.count) }
+                log(.edit, "Moved the folder \(from) to \(to)")
+            }
+            if !moves.isEmpty {
+                try MediaLibrary.updateReferences(moves, root: root)
+                log(.edit, "Moved \(moves.count) \(moves.count == 1 ? "file" : "files") and updated links to \(moves.count == 1 ? "it" : "them")",
+                    detail: moves.sorted { $0.key < $1.key }.map { "\($0.key) → \($0.value)" }.joined(separator: "\n"))
+                reload()
+            }
+            filesFolder = folder
+            selectedFileIDs = Set(selected.map { moves[$0] ?? $0 })
+            refreshFiles()
+            if let message = message(moves) { showToast(message) }
+        } catch {
+            errorMessage = "\(failure): \(error.localizedDescription)"
+            refreshFiles()
+        }
     }
 
     /// Copies Markdown that shows the files (one paragraph each), ready to
@@ -1025,13 +1136,13 @@ final class AppModel {
         showToast(files.count == 1 ? "Copied. Paste it into a page or post." : "Copied \(files.count) files. Paste them into a page or post.")
     }
 
-    /// Copies files into the site's media/files folder.
-    /// Copies files into media/files. Returns the files as added.
+    /// Copies files into a folder in media/ (media/files unless given).
+    /// Returns the files as added.
     @discardableResult
-    func addFiles(_ urls: [URL]) -> [MediaFile] {
+    func addFiles(_ urls: [URL], to folder: String = MediaLibrary.uploadsFolder) -> [MediaFile] {
         guard let root = site?.root, !urls.isEmpty else { return [] }
         do {
-            let added = try MediaLibrary.addFiles(urls, to: root)
+            let added = try MediaLibrary.addFiles(urls, to: root, folder: folder)
             log(.edit, added.count == 1 ? "Added the file \(added[0])" : "Added \(added.count) files",
                 detail: added.count > 1 ? added.joined(separator: "\n") : nil)
             refreshFiles()
