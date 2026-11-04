@@ -62,8 +62,8 @@ final class AppModel {
     var selectedFileIDs: Set<MediaFile.ID> = []
     /// Every folder inside media/ (`media/photos`, `media/photos/2026`).
     private(set) var mediaFolders: [String] = []
-    /// The folder the Files page shows; `media` is the top.
-    var filesFolder = MediaLibrary.folderName
+    /// Folders open (twirled down) in the Files page's list.
+    var expandedFileFolders: Set<String> = []
     /// The page selected on the Pages view; the preview column shows it.
     var selectedPageID: URL?
     /// The page shown in Configuration (Site Details, Fonts, Footer, …).
@@ -200,7 +200,7 @@ final class AppModel {
             LocalData.prepare(in: url)
             chosenAccount = LocalData.gitHubAccount(in: url)
             selectedFileIDs = []
-            filesFolder = MediaLibrary.folderName
+            expandedFileFolders = []
             selectedPageID = nil
             imageUndo = [:]
             storage = nil
@@ -1020,10 +1020,9 @@ final class AppModel {
         if scanned != files { files = scanned }
         let folders = MediaLibrary.folders(in: site.root)
         if folders != mediaFolders { mediaFolders = folders }
-        // The folder being shown was renamed or removed (here or in Finder).
-        if filesFolder != MediaLibrary.folderName && !folders.contains(filesFolder) {
-            filesFolder = MediaLibrary.folderName
-        }
+        // Forget open folders that were renamed or removed (here or in Finder).
+        let open = expandedFileFolders.intersection(folders)
+        if open != expandedFileFolders { expandedFileFolders = open }
     }
 
     // MARK: - Folders in media/
@@ -1087,7 +1086,7 @@ final class AppModel {
         } catch {
             errorMessage = "Couldn't move the folder to the Trash: \(error.localizedDescription)"
         }
-        if MediaLibrary.isInside(filesFolder, folder) { filesFolder = MediaLibrary.parent(of: folder) }
+        expandedFileFolders = expandedFileFolders.filter { !MediaLibrary.isInside($0, folder) }
         selectedFileIDs.subtract(inside.map(\.id))
         refreshFiles()
         revision += 1
@@ -1095,19 +1094,24 @@ final class AppModel {
 
     /// Saves, moves (files, or a folder: `folderMove` is its old and new
     /// path), rewrites links to what moved, then reloads the site so open
-    /// pages have the new links. Keeps the Files page in the same folder,
+    /// pages have the new links. Keeps the Files page's open folders open,
     /// following a folder that moved, and keeps the selection.
     private func finishMove(_ failure: String,
                             _ move: () throws -> (moves: [String: String], folderMove: (from: String, to: String)?),
                             done message: ([String: String]) -> String?) {
         guard let root = site?.root else { return }
         saveNow()
-        var folder = filesFolder
-        let selected = selectedFileIDs
+        var expanded = expandedFileFolders
+        var selected = selectedFileIDs
         do {
             let (moves, folderMove) = try move()
             if let (from, to) = folderMove {
-                if MediaLibrary.isInside(folder, from) { folder = to + folder.dropFirst(from.count) }
+                let follow = { (path: String) in MediaLibrary.isInside(path, from) ? to + path.dropFirst(from.count) : path }
+                expanded = Set(expanded.map(follow))
+                // Folder rows are selected as "folder:<path>".
+                selected = Set(selected.map { $0.hasPrefix("folder:") ? "folder:" + follow(String($0.dropFirst(7))) : $0 })
+                // Show the folder where it went.
+                expanded.formUnion(MediaLibrary.ancestors(of: to))
                 log(.edit, "Moved the folder \(from) to \(to)")
             }
             if !moves.isEmpty {
@@ -1116,7 +1120,11 @@ final class AppModel {
                     detail: moves.sorted { $0.key < $1.key }.map { "\($0.key) → \($0.value)" }.joined(separator: "\n"))
                 reload()
             }
-            filesFolder = folder
+            if folderMove == nil {
+                // Open the folders the files went into, so they stay in view.
+                for path in selected { if let to = moves[path] { expanded.formUnion(MediaLibrary.ancestors(of: MediaLibrary.parent(of: to))) } }
+            }
+            expandedFileFolders = expanded
             selectedFileIDs = Set(selected.map { moves[$0] ?? $0 })
             refreshFiles()
             if let message = message(moves) { showToast(message) }
@@ -1124,6 +1132,13 @@ final class AppModel {
             errorMessage = "\(failure): \(error.localizedDescription)"
             refreshFiles()
         }
+    }
+
+    /// Opens the Files page with a file selected and its folders open.
+    func showFile(_ path: String) {
+        expandedFileFolders.formUnion(MediaLibrary.ancestors(of: MediaLibrary.parent(of: path)))
+        selectedFileIDs = [path]
+        selection = .files
     }
 
     /// Copies Markdown that shows the files (one paragraph each), ready to

@@ -42,6 +42,19 @@ extension MediaLibrary {
     /// A folder's own name: `media/photos/2026` → `2026`.
     static func name(of folder: String) -> String { (folder as NSString).lastPathComponent }
 
+    /// The folders inside media/ that hold `path`, and `path` itself:
+    /// `media/photos/2026` → `media/photos`, `media/photos/2026`. Opening
+    /// them all in the Files page's list shows what's at `path`.
+    static func ancestors(of path: String) -> [String] {
+        var result: [String] = []
+        var current = path
+        while current.hasPrefix(folderName + "/") {
+            result.insert(current, at: 0)
+            current = parent(of: current)
+        }
+        return result
+    }
+
     /// Whether `path` is `folder` or inside it.
     static func isInside(_ path: String, _ folder: String) -> Bool {
         path == folder || path.hasPrefix(folder + "/")

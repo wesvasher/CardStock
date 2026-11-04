@@ -13,15 +13,15 @@ Open [Files](cardstock:files) in the sidebar. It lists everything in your site's
 - Drag files from Finder onto the Files page, or
 - Copy files into the site's `media` folder in Finder.
 
-Files added on the Files page go into the folder you're looking at. Images added in the editor go into a folder for their page.
+Files added on the Files page go into the selected folder (or the folder of the selected file), shown next to the buttons at the bottom. Images added in the editor go into a folder for their page.
 
 ## Organize files in folders
 
-The Files page shows one folder at a time, starting at the top of your `media` folder. Folders come first, then the files in this folder. The bar above the list shows where you are, like **Files › photos › 2026**: click any part to go back up.
+The Files page lists everything in one list, like Finder's list view. Folders come first, then files. Click the triangle next to a folder to show what's inside, and click it again to hide it. Folders inside folders open the same way.
 
-- **Open a folder**: double-click it.
-- **Make a folder**: click **New Folder…** at the bottom. It goes inside the folder you're looking at, so you can make folders inside folders.
-- **Move files**: drag them onto a folder, or onto a part of the bar above the list. Or right-click them and choose **Move To**. Select several first to move them together.
+- **Open or close a folder**: click its triangle, or double-click the folder.
+- **Make a folder**: click **New Folder…** at the bottom. It goes inside the selected folder, so you can make folders inside folders. Or right-click a folder and choose **New Folder Inside…**.
+- **Move files**: drag them onto a folder. Hold them over a closed folder for a moment and it opens, so you can drop them into a folder inside it. Drop them in the empty space below the list to move them back to the top. Or right-click them and choose **Move To**. Select several first to move them together.
 - **Rename, move or delete a folder**: right-click it. **Move to Trash…** puts the folder and everything in it in your Mac's Trash.
 - **Find a file anywhere**: searching or filtering looks in every folder, and each file shows which folder it's in.
 
