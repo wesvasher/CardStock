@@ -150,17 +150,23 @@ struct SiteView: View {
             }
             ToolbarItem {
                 let inConfiguration = model.selection == .configuration
-                Toggle(isOn: inConfiguration
-                       ? $showConfigPreview.animation(.smooth(duration: 0.35))
-                       : $showPreview) {
+                let isShown = inConfiguration ? showConfigPreview : showPreview
+                // A plain button, not a toggle: a toggle that's on gets a
+                // blue background in the toolbar.
+                Button {
+                    if inConfiguration {
+                        withAnimation(.smooth(duration: 0.35)) { showConfigPreview.toggle() }
+                    } else {
+                        showPreview.toggle()
+                    }
+                } label: {
                     Label("Preview", systemImage: "sidebar.right")
                 }
                 .disabled(!inConfiguration && model.selection?.hasPreviewColumn != true)
-                .help(inConfiguration
-                      ? "Show or hide a preview of the theme page"
-                      : model.selection?.hasPreviewColumn == true
-                      ? "Show or hide the preview"
-                      : "This view uses the full width")
+                .accessibilityValue(isShown ? "Shown" : "Hidden")
+                .help(!inConfiguration && model.selection?.hasPreviewColumn != true
+                      ? "This view uses the full width"
+                      : isShown ? "Hide the preview" : (inConfiguration ? "Show a preview of the theme page" : "Show the preview"))
             }
         }
     }
@@ -374,9 +380,12 @@ struct NewItemSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var kind: ContentKind
     @State private var title = ""
+    /// The Pages list folder it goes in (the top when empty).
+    let folder: String
 
-    init(kind: ContentKind) {
+    init(kind: ContentKind, folder: String = PageFolders.top) {
         _kind = State(initialValue: kind)
+        self.folder = folder
     }
 
     private var config: SiteConfig { model.site?.config ?? SiteConfig() }
@@ -395,6 +404,12 @@ struct NewItemSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if !folder.isEmpty {
+                Label("In the folder \(PageFolders.name(of: folder))", systemImage: "folder")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .help(folder)
+            }
             HStack {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
@@ -411,7 +426,7 @@ struct NewItemSheet: View {
     private func create() {
         let trimmed = title.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        model.newItem(kind, title: trimmed)
+        model.newItem(kind, title: trimmed, folder: folder)
         dismiss()
     }
 }

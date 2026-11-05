@@ -9,7 +9,11 @@ When you have lots of pages, put them in folders in the [Pages](cardstock:pages)
 
 ## Make a folder
 
-Click the folder button next to **New Page…** at the bottom of the list. To make a folder inside another one, right-click that folder and choose **New Folder Inside…**.
+Click the folder button next to **New Page…** at the bottom of the list. To make a folder inside another one, select that folder first, or right-click it and choose **New Folder Inside…**.
+
+## Make a page in a folder
+
+Select a folder, then click **New Page…**. The new page goes in that folder, and the New Page window says which one. With no folder selected, new pages go at the top of the list.
 
 ## Open and close folders
 

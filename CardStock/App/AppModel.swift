@@ -706,16 +706,17 @@ final class AppModel {
 
     /// Makes a new page and (unless `open` is false) opens it. Returns its
     /// address. Items of dated collections get today's date and start as
-    /// drafts; items start in their collection's item layout.
+    /// drafts; items start in their collection's item layout. `folder` puts
+    /// it in a folder of the Pages list.
     @discardableResult
-    func newItem(_ kind: ContentKind, title: String, open: Bool = true) -> String? {
+    func newItem(_ kind: ContentKind, title: String, folder: String = PageFolders.top, open: Bool = true) -> String? {
         guard let site else { return nil }
-        let folder = site.root.appending(path: ContentKind.folder)
+        let pages = site.root.appending(path: ContentKind.folder)
         let base = Site.slugify(title)
         let unavailable = site.unavailableSlugs
         var slug = base
         var n = 2
-        while FileManager.default.fileExists(atPath: folder.appending(path: "\(slug).md").path)
+        while FileManager.default.fileExists(atPath: pages.appending(path: "\(slug).md").path)
                 || unavailable.contains(slug) {
             slug = "\(base)-\(n)"
             n += 1
@@ -731,9 +732,10 @@ final class AppModel {
             }
             if !collection.itemLayout.isEmpty { fm["layout"] = .string(collection.itemLayout) }
         }
+        if !folder.isEmpty { fm["folder"] = .string(folder) }
         let linkMenu = kind == .links
         log(.edit, "Made a new \(typeName(kind)): “\(title)”")
-        return write(fm, body: linkMenu ? LinkMenu.starterBody + "\n" : "", to: folder.appending(path: "\(slug).md"),
+        return write(fm, body: linkMenu ? LinkMenu.starterBody + "\n" : "", to: pages.appending(path: "\(slug).md"),
                      open: open) ? kind.path(for: slug) : nil
     }
 

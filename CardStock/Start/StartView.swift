@@ -2,7 +2,8 @@ import AppKit
 import SwiftUI
 
 /// What you see when a site opens: tiles for the common things to do, and
-/// recent posts to pick up where you left off. The preview is hidden here.
+/// recently edited pages and added files to pick up where you left off.
+/// The preview is hidden here.
 struct StartView: View {
     @Environment(AppModel.self) private var model
     let site: Site
@@ -26,8 +27,8 @@ struct StartView: View {
                         StartTile(tile: tile)
                     }
                 }
+                recent
                 dashboard
-                recentPosts
             }
             .padding(28)
             .frame(maxWidth: 980)
@@ -105,51 +106,177 @@ struct StartView: View {
         }
     }
 
-    // MARK: - Recent posts
+    // MARK: - Recent pages and files
 
+    /// How many of each to show.
+    private static let recentCount = 6
+
+    /// Pages by when their file last changed (here, in Finder or from
+    /// another Mac), newest first. Link menus and the Template are left out.
+    private var recentPages: [(page: ContentItem, edited: Date)] {
+        var list: [(page: ContentItem, edited: Date)] = []
+        for page in current.items where !page.isLinkMenu && !page.isTemplatePage {
+            let values = try? page.fileURL.resourceValues(forKeys: [.contentModificationDateKey])
+            if let edited = values?.contentModificationDate { list.append((page, edited)) }
+        }
+        list.sort { $0.edited > $1.edited }
+        return Array(list.prefix(Self.recentCount))
+    }
+
+    private var recentFiles: [MediaFile] {
+        Array(model.files.filter { $0.added != .distantPast }
+            .sorted { $0.added > $1.added }
+            .prefix(Self.recentCount))
+    }
+
+    /// The two lists side by side, or one above the other when narrow.
     @ViewBuilder
-    private var recentPosts: some View {
-        let posts = Array(current.items(.post).prefix(4))
-        if !posts.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Recent Posts")
-                    .font(.headline)
-                VStack(spacing: 6) {
-                    ForEach(posts) { post in
-                        Button { model.selection = .item(post.id) } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "doc.text")
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 20)
-                                Text(post.title)
-                                    .lineLimit(1)
-                                if post.isDraft {
-                                    Text("Draft")
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(.orange)
-                                        .padding(.horizontal, 7)
-                                        .padding(.vertical, 2)
-                                        .background(Color.orange.opacity(0.14), in: Capsule())
-                                }
-                                Spacer()
-                                Text(post.date)
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
-                                    .monospacedDigit()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
-                            .contentShape(RoundedRectangle(cornerRadius: 10))
-                        }
-                        .buttonStyle(.plain)
+    private var recent: some View {
+        let pages = recentPages
+        let files = recentFiles
+        if !pages.isEmpty || !files.isEmpty {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 14) {
+                    recentPagesList(pages).frame(minWidth: 320)
+                    recentFilesList(files).frame(minWidth: 320)
+                }
+                VStack(alignment: .leading, spacing: 24) {
+                    recentPagesList(pages)
+                    recentFilesList(files)
+                }
+            }
+        }
+    }
+
+    private func recentPagesList(_ pages: [(page: ContentItem, edited: Date)]) -> some View {
+        RecentList(title: "Recently Edited", seeAll: "All Pages", empty: "No pages yet.",
+                   seeAllAction: { model.selection = .pages }) {
+            ForEach(pages, id: \.page.id) { entry in
+                let page = entry.page
+                RecentRow(title: page.title.isEmpty ? page.slug : page.title,
+                          detail: "\(kindName(page)) · edited \(entry.edited.formatted(.relative(presentation: .named)))",
+                          isDraft: page.isDraft && !page.isHome,
+                          help: "Edit “\(page.title)”") {
+                    Image(systemName: icon(for: page))
+                        .font(.system(size: 16))
+                        .foregroundStyle(.tint)
+                        .frame(width: 36, height: 36)
+                        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                } action: {
+                    model.selection = .item(page.id)
+                }
+            }
+        }
+    }
+
+    private func recentFilesList(_ files: [MediaFile]) -> some View {
+        RecentList(title: "Recently Added Files", seeAll: "All Files", empty: "No files yet. Images you add to pages show here.",
+                   seeAllAction: { model.selection = .files }) {
+            ForEach(files) { file in
+                RecentRow(title: file.name,
+                          detail: "added \(file.added.formatted(.relative(presentation: .named))) · "
+                              + ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file),
+                          help: "Show \(file.name) in Files") {
+                    FileThumbnail(file: file, size: 36)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                } action: {
+                    model.showFile(file.path)
+                }
+            }
+        }
+    }
+
+    private func kindName(_ page: ContentItem) -> String {
+        if page.isHome { return "Home" }
+        if page.isNotFoundPage { return "Broken links page" }
+        if page.isSearchPage { return "Search" }
+        return current.config.singularName(page.kind)
+    }
+
+    private func icon(for page: ContentItem) -> String {
+        page.isHome ? "house" : page.isNotFoundPage ? "exclamationmark.triangle"
+            : page.isSearchPage ? "magnifyingglass" : current.config.systemImage(page.kind)
+    }
+}
+
+/// A titled list on the Start page, with a link to see everything.
+private struct RecentList<Rows: View>: View {
+    let title: String
+    let seeAll: String
+    let empty: String
+    let seeAllAction: () -> Void
+    @ViewBuilder let rows: Rows
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(title).font(.headline)
+                Spacer()
+                Button(seeAll, action: seeAllAction)
+                    .buttonStyle(.link)
+                    .font(.callout)
+            }
+            VStack(spacing: 6) {
+                Group(subviews: rows) { subviews in
+                    if subviews.isEmpty {
+                        Text(empty)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 6)
+                    } else {
+                        ForEach(subviews) { $0 }
                     }
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+/// One page or file: a picture, its name and when, opened with one click.
+private struct RecentRow<Icon: View>: View {
+    let title: String
+    let detail: String
+    var isDraft = false
+    let help: String
+    @ViewBuilder let icon: Icon
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                icon
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(title).lineLimit(1).truncationMode(.middle)
+                        if isDraft {
+                            Text("Draft")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.orange)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Color.orange.opacity(0.14), in: Capsule())
+                        }
+                    }
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.primary.opacity(isHovered ? 0.08 : 0.05), in: RoundedRectangle(cornerRadius: 10))
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help(help)
     }
 }
 

@@ -721,6 +721,22 @@ struct Site: Sendable {
 
     var home: ContentItem? { items.first(where: \.isHome) }
 
+    /// The page file shown at an address in the preview, so it can be
+    /// opened in the editor: a page's own address, the Template page, or a
+    /// short address from Configuration → Folders. Nil for pages with no
+    /// file of their own (tag pages, samples, a main page without a file).
+    func item(atAddress address: String) -> ContentItem? {
+        var path = address.hasSuffix("/index.html") ? String(address.dropLast("index.html".count)) : address
+        if path.isEmpty { path = "/" }
+        if path == "/" { return home }
+        if path == SiteRenderer.templatePagePath { return items.first(where: \.isTemplatePage) }
+        if let item = items.first(where: { $0.path == path || $0.path == path + "/" }) { return item }
+        if let folder = config.folder(at: path) ?? config.folder(at: path + "/") {
+            return items.first { $0.slug == folder.page && !$0.isLinkMenu }
+        }
+        return nil
+    }
+
     /// Adds the Template page (pages/template.md and theme/template.html) to
     /// sites made before it existed. Returns true if anything was added.
     @discardableResult

@@ -57,6 +57,22 @@ struct PageFolderTests {
         #expect(item.frontMatter.string("folder") == nil)
     }
 
+    @MainActor @Test func newPageGoesInTheFolder() throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "cardstock-pagefolders-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let model = AppModel()
+        model.createSite(at: dir.appending(path: "Site"))
+        let folder = try #require(model.newPageFolder("Recipes", in: PageFolders.top))
+        model.newItem(.page, title: "Soup", folder: folder)
+        model.newItem(.page, title: "Contact")
+        let soup = try #require(model.site?.items.first { $0.title == "Soup" })
+        #expect(soup.folder == "Recipes")
+        #expect(soup.path == "/pages/soup/")
+        #expect(model.site?.items.first { $0.title == "Contact" }?.folder == "")
+        // It's saved in the page's file.
+        #expect(try String(contentsOf: soup.fileURL, encoding: .utf8).contains("folder: Recipes"))
+    }
+
     @Test func savedInSiteJSON() throws {
         var config = SiteConfig()
         config.pageFolders = ["Recipes", "Recipes/Soups"]

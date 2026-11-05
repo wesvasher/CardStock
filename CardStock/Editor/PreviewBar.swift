@@ -48,22 +48,16 @@ final class PreviewNavigator {
 }
 
 /// The bar above the preview, sized and styled like the window's toolbar:
-/// round Back and Forward buttons, the page's built file, a Desktop /
-/// iPhone switch, and the full device menu.
+/// round Back and Forward buttons, the page's built file, a pencil that
+/// edits the page shown, and a Desktop / iPhone / ⋯ switch.
 struct PreviewBar: View {
+    @Environment(AppModel.self) private var model
     @Binding var device: PreviewDevice
     let navigator: PreviewNavigator
 
     /// Height of the window toolbar's buttons, which this bar matches.
     static let controlHeight: CGFloat = 36
     static let barHeight: CGFloat = 52
-
-    /// The Desktop / iPhone switch: Fit to Window or iPhone 17. Other
-    /// devices chosen from the menu leave both unselected.
-    private var options: [GlassSegmentedPicker<PreviewDevice>.Option] {
-        [.init(.fit, "Desktop", systemImage: "desktopcomputer"),
-         .init(.iphone, "iPhone", systemImage: "iphone")]
-    }
 
     var body: some View {
         GlassEffectContainer {
@@ -81,34 +75,34 @@ struct PreviewBar: View {
                     .help("\(navigator.builtFile) · published at \(navigator.address)")
                     .layoutPriority(-1)
 
-                GlassSegmentedPicker(selection: $device, options: options, height: Self.controlHeight)
-                    .help("Switch between a desktop and an iPhone 17 view")
+                editButton
 
-                Menu {
-                    Picker("Preview Device", selection: $device) {
-                        ForEach(PreviewDevice.Group.allCases, id: \.self) { group in
-                            Section(group.rawValue) {
-                                ForEach(PreviewDevice.allCases.filter { $0.group == group }) { d in
-                                    Label(d.menuTitle, systemImage: d.systemImage).tag(d)
-                                }
-                            }
-                        }
-                    }
-                    .pickerStyle(.inline)
-                } label: {
-                    Image(systemName: device.systemImage)
-                        .font(.system(size: 15, weight: .medium))
-                        .frame(width: Self.controlHeight, height: Self.controlHeight)
-                        .contentShape(Circle())
-                }
-                .menuStyle(.button)
-                .menuIndicator(.hidden)
-                .buttonStyle(.plain)
-                .roundGlass(Self.controlHeight)
-                .help("Preview as \(device.name)")
+                DeviceSwitch(device: $device, height: Self.controlHeight)
             }
             .padding(.horizontal, 10)
             .frame(height: Self.barHeight)
+        }
+    }
+
+    /// The page file for what the preview shows.
+    private var shownPage: ContentItem? { model.site?.item(atAddress: navigator.address) }
+
+    /// Already open in the Pages view's editor.
+    private var isEditing: Bool {
+        model.selection == .pages && shownPage?.id == model.selectedPageID
+    }
+
+    /// Pencil: opens the page shown in the preview in the editor.
+    private var editButton: some View {
+        let page = shownPage
+        let enabled = page != nil && !isEditing
+        let help = if let page {
+            isEditing ? "“\(page.title)” is open in the editor" : "Edit “\(page.title)”"
+        } else {
+            "This page has no text of its own to edit"
+        }
+        return roundButton("pencil", help: help, enabled: enabled) {
+            if let page { model.selection = .item(page.id) }
         }
     }
 
@@ -124,5 +118,89 @@ struct PreviewBar: View {
         .roundGlass(Self.controlHeight, interactive: enabled)
         .disabled(!enabled)
         .help(help)
+    }
+}
+
+/// Desktop, iPhone and ⋯ in one glass switch. Desktop is Fit to Window and
+/// iPhone is iPhone 17; ⋯ opens every size, and is the selected part while
+/// one of those other sizes is shown.
+private struct DeviceSwitch: View {
+    @Binding var device: PreviewDevice
+    let height: CGFloat
+    @Namespace private var namespace
+
+    private let inset: CGFloat = 3
+    private static let quick: [(PreviewDevice, String, String)] = [
+        (.fit, "Desktop", "desktopcomputer"),
+        (.iphone, "iPhone", "iphone"),
+    ]
+
+    private var isOtherSize: Bool { !Self.quick.contains { $0.0 == device } }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Self.quick, id: \.0) { value, title, symbol in
+                Button {
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) { device = value }
+                } label: {
+                    segmentLabel(symbol, selected: device == value)
+                }
+                .buttonStyle(.plain)
+                .help(title)
+                .accessibilityLabel(title)
+                .accessibilityAddTraits(device == value ? .isSelected : [])
+            }
+            Menu {
+                Picker("Preview Device", selection: Binding(
+                    get: { device },
+                    set: { new in withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) { device = new } })) {
+                    ForEach(PreviewDevice.Group.allCases, id: \.self) { group in
+                        Section(group.rawValue) {
+                            ForEach(PreviewDevice.allCases.filter { $0.group == group }) { d in
+                                Label(d.menuTitle, systemImage: d.systemImage).tag(d)
+                            }
+                        }
+                    }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                segmentLabel("ellipsis", selected: isOtherSize)
+            }
+            .menuStyle(.button)
+            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
+            .fixedSize()
+            .help(isOtherSize ? "Previewing as \(device.name). Click for more sizes." : "More sizes: laptops, iPads, other phones")
+            .accessibilityLabel(isOtherSize ? "More sizes, \(device.name)" : "More sizes")
+            .accessibilityAddTraits(isOtherSize ? .isSelected : [])
+        }
+        .padding(inset)
+        .frame(height: height)
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    /// An icon with the sliding tinted pill behind it when selected, like
+    /// `GlassSegmentedPicker`.
+    private func segmentLabel(_ symbol: String, selected: Bool) -> some View {
+        Image(systemName: symbol)
+            .font(.callout.weight(selected ? .semibold : .medium))
+            .foregroundStyle(selected ? Color.white : Color.primary)
+            .frame(width: 22)
+            .padding(.horizontal, 10)
+            // A set height, not "fill": the menu's label sizes itself to its
+            // content, so ⋯'s pill would come out shorter than the others.
+            .frame(height: height - inset * 2)
+            .background {
+                if selected {
+                    Capsule()
+                        .fill(Color.accentColor.opacity(0.85))
+                        .glassEffect(.regular.tint(.accentColor).interactive(), in: .capsule)
+                        .matchedGeometryEffect(id: "selection", in: namespace)
+                        .shadow(color: Color.accentColor.opacity(0.35), radius: 4, y: 1)
+                }
+            }
+            .contentShape(Capsule())
+            .scaleEffect(selected ? 1 : 0.97)
     }
 }

@@ -18,6 +18,23 @@ struct FolderTests {
         return try Site.load(from: root)
     }
 
+    /// The preview's pencil button opens the page shown at an address.
+    @Test func pageAtAddress() throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let site = try site()
+        #expect(site.item(atAddress: "/")?.isHome == true)
+        #expect(site.item(atAddress: "/index.html")?.isHome == true)
+        #expect(site.item(atAddress: "/pages/subscribe/")?.slug == "subscribe")
+        #expect(site.item(atAddress: "/pages/subscribe/index.html")?.slug == "subscribe")
+        #expect(site.item(atAddress: "/pages/subscribe")?.slug == "subscribe")
+        // A short address from Configuration → Folders.
+        #expect(site.item(atAddress: "/subscribe/")?.slug == "subscribe")
+        #expect(site.item(atAddress: SiteRenderer.templatePagePath)?.isTemplatePage == true)
+        // Pages with no file of their own.
+        #expect(site.item(atAddress: "/tags/") == nil)
+        #expect(site.item(atAddress: SiteRenderer.newsletterPreviewPath) == nil)
+    }
+
     @Test func folderShowsItsPage() throws {
         defer { try? FileManager.default.removeItem(at: dir) }
         let site = try site()

@@ -10,7 +10,8 @@ CardStock is an editor for a simple website: pages, a blog and a small shop. You
 ## How it works
 
 - **Your site is a folder.** Every page, blog post and product is a plain Markdown file you can open in any text editor. Nothing is locked inside CardStock.
-- **The preview is live.** The right column shows each page as visitors will see it, updating as you type.
+- **Pick up where you left off.** The Start page lists the pages you edited most recently and the files you added most recently. Click one to open it.
+- **The preview is live.** The right column shows each page as visitors will see it, updating as you type. Click links in it to look around your site. The pencil button above it opens the page you're looking at in the editor, and the desktop and phone buttons switch between a computer-sized and an iPhone-sized view.
 - **Publishing is optional.** Link the site to GitHub and CardStock publishes it for you, and a host like Cloudflare Pages puts it online. Or generate the flat HTML and upload the files anywhere yourself.
 
 ## The sidebar

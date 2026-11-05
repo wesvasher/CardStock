@@ -12,6 +12,8 @@ struct PagesView: View {
     @State private var filter = PageFilter.all
     @State private var sort = PageSort.type
     @State private var showNewPage = false
+    /// The folder New Page puts the page in, from when it was clicked.
+    @State private var newPageFolder = PageFolders.top
     /// The folder being named: a new one (inside `parent`) or a rename.
     @State private var naming: FolderNaming?
     @State private var folderName = ""
@@ -156,7 +158,7 @@ struct PagesView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { footer }
-        .sheet(isPresented: $showNewPage) { NewItemSheet(kind: .page) }
+        .sheet(isPresented: $showNewPage) { NewItemSheet(kind: .page, folder: newPageFolder) }
         .onAppear {
             // Start with a page selected so the preview shows something.
             if model.selectedPage == nil { model.selectedPageID = shown.first?.id }
@@ -165,14 +167,17 @@ struct PagesView: View {
         }
         .onChange(of: selectedIDs) { old, new in
             // The page just clicked goes in the editor; otherwise keep the
-            // one shown while it's still selected.
-            let added = new.subtracting(old)
+            // one shown while it's still selected. Selecting only folders
+            // leaves the editor as it is.
+            let pages = new.filter { Self.folderPath($0) == nil }
+            guard !pages.isEmpty || new.isEmpty else { return }
+            let added = pages.subtracting(old)
             if added.count == 1 {
                 model.selectedPageID = added.first
-            } else if let current = model.selectedPageID, new.contains(current) {
+            } else if let current = model.selectedPageID, pages.contains(current) {
                 return
             } else {
-                model.selectedPageID = shown.first { new.contains($0.id) }?.id
+                model.selectedPageID = shown.first { pages.contains($0.id) }?.id
             }
         }
         .onChange(of: model.selectedPageID) {
@@ -275,6 +280,7 @@ struct PagesView: View {
                     } onHover: {
                         withAnimation(.snappy(duration: 0.2)) { _ = model.expandedPageFolders.insert(path) }
                     }
+                    .tag(Self.folderID(path))
                     .draggable(Self.dragPrefix + Self.folderLine + path)
                     .contextMenu { folderMenu(path) }
                 }
@@ -299,7 +305,8 @@ struct PagesView: View {
         .padding(.vertical, 2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) { toggle(path) }
+        // Simultaneous, so a single click still selects the row.
+        .simultaneousGesture(TapGesture(count: 2).onEnded { toggle(path) })
         .help("Click the triangle or double-click to show the pages inside. Drop pages here to move them in.")
     }
 
@@ -333,6 +340,23 @@ struct PagesView: View {
             Divider()
             Button("New Folder…") { startNewFolder(in: PageFolders.top) }
         }
+    }
+
+    /// List ids for folder rows: not file URLs, so they never match a page.
+    private static func folderID(_ path: String) -> URL {
+        URL(string: "cardstock-page-folder:" + (path.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? path))!
+    }
+
+    private static func folderPath(_ id: URL) -> String? {
+        guard id.scheme == "cardstock-page-folder" else { return nil }
+        return String(id.absoluteString.dropFirst("cardstock-page-folder:".count)).removingPercentEncoding
+    }
+
+    /// Where New Page and New Folder put things: the folder selected, when
+    /// just one is; otherwise the top of the list.
+    private var targetFolder: String {
+        let folders = selectedIDs.compactMap(Self.folderPath)
+        return folders.count == 1 && model.pageFolders.contains(folders[0]) ? folders[0] : PageFolders.top
     }
 
     /// Pages and folders being dragged: `cardstock-pages:`, then a line
@@ -459,7 +483,10 @@ struct PagesView: View {
 
     private var footer: some View {
         HStack {
-            Button { showNewPage = true } label: {
+            Button {
+                newPageFolder = targetFolder
+                showNewPage = true
+            } label: {
                 Label("New Page…", systemImage: "plus")
                     .font(.callout.weight(.medium))
                     .padding(.horizontal, 12)
@@ -468,7 +495,8 @@ struct PagesView: View {
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .capsule)
-            Button { startNewFolder(in: PageFolders.top) } label: {
+            .help(targetFolder.isEmpty ? "Make a new page" : "Make a new page in \(PageFolders.name(of: targetFolder))")
+            Button { startNewFolder(in: targetFolder) } label: {
                 Image(systemName: "folder.badge.plus")
                     .font(.system(size: 14, weight: .medium))
                     .frame(width: 30, height: 30)
@@ -476,7 +504,8 @@ struct PagesView: View {
             }
             .buttonStyle(.plain)
             .roundGlass(30)
-            .help("New Folder: group pages in this list. Their addresses don't change.")
+            .help(targetFolder.isEmpty ? "New Folder: group pages in this list. Their addresses don't change."
+                  : "New Folder inside \(PageFolders.name(of: targetFolder))")
             .accessibilityLabel("New Folder")
             Spacer()
         }
