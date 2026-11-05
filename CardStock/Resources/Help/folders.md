@@ -7,6 +7,8 @@ order: 3
 
 Every address on your site is made of folders: `/blog/`, `/pages/`, `/shop/pages/blue-mug/`. See them all in [Folders](cardstock:folders) in Configuration.
 
+To group pages in the Pages list without changing any addresses, see [Organize pages in folders](help:organize-pages).
+
 ## Folders CardStock makes
 
 Some folders are made and used by CardStock, and are marked **Made by CardStock** with a lock:

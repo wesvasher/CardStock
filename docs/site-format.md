@@ -116,6 +116,10 @@ Files in `media/` are tagged in `media.json` at the site's root (committed, not 
 
 `folders` (optional) are your own short addresses, edited in Configuration → Folders: `"folders": [{ "name": "subscribe", "page": "subscribe" }]`. Each publishes `/<name>/index.html` with the page whose file name is `page` (`pages/subscribe.md`; a collection's id means its main page), rendered exactly as at its own address, which it keeps (the canonical link points there). A folder whose page is missing, a draft or a link menu isn't published. Names use lowercase letters, numbers and hyphens, and can't be a collection's id or a folder CardStock uses (`pages`, `tags`, `media`, `assets`, `links`, `search`, …). CardStock's own folders are one per collection plus `/pages/`, `/tags/`, `/media/` and `/assets/`.
 
+`pageFolders` (optional) are folders in CardStock's Pages list, kept here so empty ones stay: `"pageFolders": ["Recipes", "Recipes/Soups"]`. A page says which one it's in with `folder:` front matter. They only organize the list in the app: nothing is published for them, and addresses don't change.
+
+`shopping` (optional) is how the site sells things, edited in Configuration → Shopping: `"shopping": { "provider": "stripe-payment-links", "buttonLabel": "Buy Now" }`. `provider` is `none` (the default; an unknown value reads as `none`) or `stripe-payment-links`. With Stripe Payment Links, a page's `buy` front matter (when it isn't an item in a selling collection, which has its own Buy button) adds `<p class="buy-button"><a class="button buy" href="<buy>" target="_blank" rel="noopener"><buyLabel or buttonLabel></a></p>` after its text. `buttonLabel` is the text new buttons start with. CardStock's preview shows a sample page with a button at `/_shopping/` (never published).
+
 `tags` (optional): `pages` (default true) publishes `/tags/` and a page per tag; `list` holds tags with a `description` (shown on the tag's page) or made before any page used them: `"tags": { "pages": true, "list": [{ "name": "Design", "description": "Pages about design." }] }`.
 
 `footer` is optional; without it the footer is on with a copyright notice and an RSS link. `copyrightName` empty means the author, or the site title when there's no author. The copyright shows as `© <current year> <name>`.
@@ -178,12 +182,13 @@ A main page without a file is still published, titled with the collection's name
 | `price`      | items (selling)    | Price as shown, e.g. `$24.00`             |
 | `discount`   | items (selling)    | Percent off, 1–99 (`30` or `30%`). Lists and the item page show the sale price (the first number in `price`, scaled and written the same way: `$5.48` at 30 % is `$3.84`, `5,48 €` is `3,84 €`), the old price struck through and `(30% off)` |
 | `hoverVideo` | items (store list) | A video file (`.mp4`, `.webm`, `.mov`, `.m4v`) shown on the item's store tile: a muted, looping `<video class="product-hover-video">` over the cover (`preload="none"`), played by an inline script while the pointer is over the tile or it has focus (not on touch screens or with Reduce Motion), with a `.product-video-badge` play mark. Without a cover it shows the video's first frame (`.is-still`, `#t=0.1`) |
-| `buy`        | items (selling)    | Checkout link for the Buy button (Stripe Payment Links, Gumroad, Etsy, …) |
-| `buyLabel`   | items (selling)    | Buy button text; `Buy Now` when empty     |
+| `buy`        | items (selling); other pages with Stripe Payment Links on | Checkout link for the Buy button (Stripe Payment Links, Gumroad, Etsy, …) |
+| `buyLabel`   | same as `buy`      | Buy button text; `Buy Now` (or `shopping.buttonLabel`) when empty |
 | `video`      | items (video)      | YouTube or Vimeo link, or a video file (`.mp4`, `.webm`, `.mov`, `.m4v`) |
 | `layout`     | all                | A page layout (below)                     |
 | `cover`      | all                | Image path, usually `/media/…`            |
 | `draft`      | all                | `true` hides it from the published site   |
+| `folder`     | all                | Its folder in CardStock's Pages list, e.g. `Recipes/Soups` (see `pageFolders`). Doesn't change the address |
 
 ## Images
 
@@ -250,6 +255,8 @@ Settings in `site.json`:
 A line holding only a YouTube or Vimeo link (bare or in `<…>`), or a YouTube or Vimeo `<iframe>` embed (on one line), outside code blocks, becomes the video player: `<div class="video-embed"><iframe src="https://www.youtube-nocookie.com/embed/<id>[?start=N]" …></iframe></div>` (Vimeo: `https://player.vimeo.com/video/<id>`), the same as an item's `video:` field. A start time comes from `t=` (`90`, `1m30s`) or `start=`. The embed's own size, `si=` and other parameters are dropped. Other iframes are published as written.
 
 ### Newsletter box
+
+A line holding only `<!-- buy <link> "<text>" -->` (any case or spacing, not inside a code block; the text is optional and defaults to `Buy Now`) is a Buy button: `<p class="buy-button"><a class="button buy" href="<link>" target="_blank" rel="noopener"><text></a></p>`. The link must be an `http` or `https` address, usually a Stripe Payment Link (`https://buy.stripe.com/…`). These show whatever `shopping.provider` is.
 
 A line holding only `<!-- newsletter -->` (any case or spacing, not inside a code block) marks where a page shows the newsletter sign-up box. It's set in `site.json`:
 

@@ -37,7 +37,7 @@ enum MarkdownStyler {
     private static let link = regex(#"(?<!!)\[((?:[^\[\]\n]|!\[[^\]\n]*\]\([^)\n]*\))+)\]\(([^)\n]*)\)"#)
     private static let small = regex(#"(<small>)([\s\S]*?)(</small>)"#, [.caseInsensitive])
     /// Section breaks (for layouts) and boxes (mailing list, search).
-    private static let sectionBreak = regex(#"^[ \t]*<!--[ \t]*(?:section|newsletter|search)[ \t]*-->[ \t]*$"#, [.anchorsMatchLines, .caseInsensitive])
+    private static let sectionBreak = regex(#"^[ \t]*<!--[ \t]*(?:section|newsletter|search|buy[ \t][^\n]*?)[ \t]*-->[ \t]*$"#, [.anchorsMatchLines, .caseInsensitive])
     private static let image = regex(#"!\[([^\]\n]*)\]\(([^)\n]*)\)"#)
 
     /// Restyles all of `storage`.

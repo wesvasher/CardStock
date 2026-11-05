@@ -110,7 +110,8 @@ struct SiteView: View {
                 Label("Help Center", systemImage: "questionmark.circle")
                     .tag(SidebarSelection.help)
             }
-            .navigationSplitViewColumnWidth(200)
+            // A minimum, so the detail columns can't squeeze the sidebar.
+            .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 280)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 StatusBar()
             }
@@ -202,6 +203,7 @@ struct DetailView: View {
         switch model.configPage {
         case .layouts: SiteRenderer.layoutPreviewPath(model.previewLayoutID)
         case .newsletter: SiteRenderer.newsletterPreviewPath
+        case .shopping: SiteRenderer.shoppingPreviewPath
         case .search: ContentItem.searchPath
         case .collections: model.previewCollectionPath
         case .tags: model.previewTagPath
@@ -239,6 +241,11 @@ struct DetailView: View {
         }
     }
 
+    /// Narrowest the page editor and the preview get. With the sidebar
+    /// (190) and the page list (260) they fit the window's 1280 minimum.
+    static let editorMinWidth: CGFloat = 400
+    static let previewMinWidth: CGFloat = 320
+
     /// Pages: the page list (260 wide), then the editor and the preview,
     /// which start out sharing the rest of the width evenly.
     private var pagesLayout: some View {
@@ -248,13 +255,14 @@ struct DetailView: View {
                 .frame(maxHeight: .infinity)
             Divider()
             if showPreview {
-                ResizableSplit(fraction: $pagesSplit, minWidth: 360) {
+                ResizableSplit(fraction: $pagesSplit, minWidth: Self.editorMinWidth, trailingMinWidth: Self.previewMinWidth) {
                     pageEditor
                 } trailing: {
                     devicePreview(path: model.selectedPage?.path ?? "/")
                 }
             } else {
                 pageEditor
+                    .frame(minWidth: Self.editorMinWidth, maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -481,7 +489,10 @@ enum SitePanels {
 /// evenly again.
 struct ResizableSplit<Leading: View, Trailing: View>: View {
     @Binding var fraction: Double
+    /// The narrowest each side gets; the split itself is never narrower
+    /// than both together, so the window stops shrinking instead.
     var minWidth: CGFloat = 300
+    var trailingMinWidth: CGFloat?
     @ViewBuilder var leading: Leading
     @ViewBuilder var trailing: Trailing
 
@@ -490,8 +501,12 @@ struct ResizableSplit<Leading: View, Trailing: View>: View {
     var body: some View {
         GeometryReader { geo in
             let total = max(geo.size.width - 1, 1)
-            let lower = min(minWidth / total, 0.5)
-            let share = min(max(fraction, lower), 1 - lower)
+            let trailingMin = trailingMinWidth ?? minWidth
+            // Shares that keep both sides at their minimums.
+            let lowest = min(minWidth / total, 1)
+            let highest = max(1 - trailingMin / total, lowest)
+            let lower = lowest
+            let share = min(max(fraction, lowest), highest)
             HStack(spacing: 0) {
                 leading
                     .frame(width: total * share)
@@ -510,7 +525,7 @@ struct ResizableSplit<Leading: View, Trailing: View>: View {
                                     .onChanged { value in
                                         let start = dragStart ?? share
                                         dragStart = start
-                                        fraction = min(max(start + value.translation.width / total, lower), 1 - lower)
+                                        fraction = min(max(start + value.translation.width / total, lower), highest)
                                     }
                                     .onEnded { _ in dragStart = nil })
                             .onTapGesture(count: 2) { fraction = 0.5 }
@@ -520,5 +535,6 @@ struct ResizableSplit<Leading: View, Trailing: View>: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .frame(minWidth: minWidth + (trailingMinWidth ?? minWidth) + 1)
     }
 }

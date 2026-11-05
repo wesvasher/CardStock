@@ -94,7 +94,10 @@ struct FilesView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            footer
+            VStack(spacing: 0) {
+                if !model.files.isEmpty || !model.mediaFolders.isEmpty { bucket }
+                footer
+            }
         }
         .overlay {
             if isDropTargeted {
@@ -220,10 +223,7 @@ struct FilesView: View {
 
     /// Moves dropped files and folders into `destination`.
     private func drop(_ payloads: [String], into destination: String) -> Bool {
-        let paths = payloads.flatMap { text -> [String] in
-            guard text.hasPrefix(Self.dragPrefix) else { return [] }
-            return text.dropFirst(Self.dragPrefix.count).split(separator: "\n").map(String.init)
-        }
+        let paths = Self.paths(in: payloads)
         guard !paths.isEmpty else { return false }
         let folders = paths.filter { model.mediaFolders.contains($0) }
         for path in folders where !MediaLibrary.isInside(destination, path) {
@@ -231,6 +231,8 @@ struct FilesView: View {
         }
         let files = model.files.filter { paths.contains($0.path) && $0.folder != destination }
         if !files.isEmpty { model.moveFiles(files, to: destination) }
+        // Whatever was carried in the bucket has arrived.
+        model.bucketPaths.removeAll { paths.contains($0) }
         return true
     }
 
@@ -248,6 +250,71 @@ struct FilesView: View {
             }
             Divider()
             Button("New Folder…") { startNewFolder() }
+        }
+    }
+
+    // MARK: - Drop Bucket
+
+    /// The one folder selected (and nothing else), for Move Here.
+    private var moveHereTarget: String? {
+        let chosen = folders(selection)
+        guard chosen.count == 1, files(selection).isEmpty else { return nil }
+        return chosen[0]
+    }
+
+    private var moveHereHelp: String {
+        if let target = moveHereTarget { return "Move what's in the bucket into \(placeName(target))" }
+        if folders(selection).count > 1 { return "You can only select one folder. Select just the folder to move these into." }
+        return "Select one folder in the list to move these into it."
+    }
+
+    /// A place to park files while you find the folder they go in: drag
+    /// selected files in, open another folder, then drag them out onto it
+    /// or select it and click Move Here.
+    private var bucket: some View {
+        HStack(spacing: 10) {
+            DropBucket(paths: model.bucketPaths, files: model.files) { items in
+                let paths = Self.paths(in: items)
+                let new = paths.filter { !model.bucketPaths.contains($0) }
+                guard !new.isEmpty else { return false }
+                withAnimation(.snappy(duration: 0.2)) { model.bucketPaths.append(contentsOf: new) }
+                return true
+            } payload: {
+                dragPayload(for: model.bucketPaths)
+            } onEmpty: {
+                withAnimation(.snappy(duration: 0.2)) { model.bucketPaths = [] }
+            }
+            if !model.bucketPaths.isEmpty {
+                let target = moveHereTarget
+                Button {
+                    // Not .disabled: a disabled button shows no tooltip.
+                    guard let target else { return }
+                    _ = drop([dragPayload(for: model.bucketPaths)], into: target)
+                } label: {
+                    Label("Move Here", systemImage: "tray.and.arrow.down")
+                        .font(.callout.weight(.medium))
+                        .padding(.horizontal, 12)
+                        .frame(height: 30)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.interactive(), in: .capsule)
+                .opacity(target == nil ? 0.45 : 1)
+                .help(moveHereHelp)
+                .accessibilityHint(moveHereHelp)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
+    }
+
+    /// The paths in dragged `cardstock-media:` strings.
+    private static func paths(in payloads: [String]) -> [String] {
+        payloads.flatMap { text -> [String] in
+            guard text.hasPrefix(dragPrefix) else { return [] }
+            return text.dropFirst(dragPrefix.count).split(separator: "\n").map(String.init)
         }
     }
 
@@ -288,7 +355,6 @@ struct FilesView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(.bar)
-        .overlay(alignment: .top) { Divider() }
     }
 
     // MARK: - Header
@@ -508,11 +574,8 @@ struct FilesView: View {
             parts.append(ByteCountFormatter.string(fromByteCount: files.reduce(0) { $0 + $1.size }, countStyle: .file))
         }
         if folders > 0 { parts.append("\(folders) \(folders == 1 ? "folder" : "folders")") }
-        return HStack(spacing: 10) {
-            Image(systemName: "folder.fill")
-                .font(.system(size: 26))
-                .foregroundStyle(.tint)
-                .frame(width: 36, height: 36)
+        // Same look as folders in the Pages list.
+        return Label {
             VStack(alignment: .leading, spacing: 1) {
                 Text(MediaLibrary.name(of: path)).lineLimit(1)
                 Text(parts.joined(separator: " · "))
@@ -520,9 +583,11 @@ struct FilesView: View {
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
-            Spacer(minLength: 0)
+        } icon: {
+            Image(systemName: "folder.fill").foregroundStyle(.tint)
         }
         .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .help("/\(path)/ · Click the triangle or double-click to show what's inside. Drop files here to move them in.")
     }
@@ -625,10 +690,106 @@ struct FilesView: View {
     }
 }
 
+/// The Files page's Drop Bucket: takes dragged files and folders, shows
+/// what's in it, and can be dragged out as a whole onto a folder.
+private struct DropBucket: View {
+    let paths: [String]
+    let files: [MediaFile]
+    let onDrop: ([String]) -> Bool
+    let payload: () -> String
+    let onEmpty: () -> Void
+    @State private var isTargeted = false
+
+    private var heldFiles: [MediaFile] { paths.compactMap { path in files.first { $0.path == path } } }
+    private var heldFolders: [String] { paths.filter { path in !files.contains { $0.path == path } } }
+
+    private var summary: String {
+        var parts: [String] = []
+        let fileCount = heldFiles.count, folderCount = heldFolders.count
+        if fileCount > 0 { parts.append("\(fileCount) \(fileCount == 1 ? "file" : "files")") }
+        if folderCount > 0 { parts.append("\(folderCount) \(folderCount == 1 ? "folder" : "folders")") }
+        return parts.joined(separator: ", ")
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if paths.isEmpty {
+                Image(systemName: "tray")
+                    .font(.system(size: 18))
+                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Drop Bucket").font(.callout.weight(.medium))
+                    Text("Drag files here, open another folder, then drag them out to move them.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            } else {
+                contents
+                    .draggable(payload()) {
+                        Label(summary, systemImage: "tray.full")
+                            .padding(6)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    }
+                Button(action: onEmpty) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Empty the bucket. The files stay where they are.")
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, minHeight: 50)
+        .background(isTargeted ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.03),
+                    in: RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(isTargeted ? Color.accentColor : Color.secondary.opacity(0.4),
+                              style: StrokeStyle(lineWidth: isTargeted ? 2 : 1, dash: [5, 4]))
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 10))
+        .dropDestination(for: String.self) { items, _ in onDrop(items) } isTargeted: { isTargeted = $0 }
+        .help(paths.isEmpty ? "Drag selected files here to carry them to another folder"
+                            : paths.joined(separator: "\n"))
+    }
+
+    /// Up to five thumbnails, overlapping like a little stack, and a count.
+    private var contents: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: -14) {
+                ForEach(heldFiles.prefix(5)) { file in
+                    FileThumbnail(file: file, size: 32)
+                        .background(.background, in: RoundedRectangle(cornerRadius: 5))
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                        .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(.separator))
+                }
+                if heldFiles.count < 5 {
+                    ForEach(heldFolders.prefix(5 - heldFiles.count), id: \.self) { _ in
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(.tint)
+                            .frame(width: 32, height: 32)
+                    }
+                }
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(summary).font(.callout.weight(.medium)).monospacedDigit()
+                Text("Drag onto a folder, or select one and click Move Here.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+}
+
 /// A folder row that takes dropped files and folders: it lights up while
 /// something's dragged over it, and opens if the drag stays a moment, so
 /// you can drop into a folder inside it.
-private struct FolderDropTarget<Content: View>: View {
+struct FolderDropTarget<Content: View>: View {
     let isOpen: Bool
     @ViewBuilder let content: () -> Content
     let onDrop: ([String]) -> Bool

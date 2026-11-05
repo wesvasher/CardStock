@@ -134,6 +134,8 @@ struct ThemingView: View {
                 NewsletterSection(config: configBinding)
             case .search:
                 SearchSection(config: configBinding)
+            case .shopping:
+                ShoppingSection(config: configBinding)
             }
         }
         .formStyle(.grouped)

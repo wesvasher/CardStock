@@ -65,6 +65,7 @@ final class MarkdownEditorController {
     func sectionBreak() { insertBlocks([PageLayout.sectionBreak]) }
     func newsletter() { insertBlocks([PageWidget.newsletter.marker]) }
     func searchBox() { insertBlocks([PageWidget.search.marker]) }
+    func buyButton(link: String, label: String) { insertBlocks([BuyButton.marker(link: link, label: label)]) }
 
     private func wrap(_ marker: String) {
         apply { MarkdownFormatting.toggleWrap($0, $1, marker: marker) }

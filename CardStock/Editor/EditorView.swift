@@ -13,6 +13,7 @@ struct EditorView: View {
     @State private var choosingCover = false
     @State private var choosingHoverVideo = false
     @State private var confirmDelete = false
+    @State private var showBuyButton = false
     /// The Page Settings accordion; closed whenever a page opens, so the
     /// text sits high.
     @State private var settingsOpen = false
@@ -33,6 +34,11 @@ struct EditorView: View {
             }
         }
         .sheet(isPresented: $showNewCollection) { AddCollectionSheet(page: current) }
+        .sheet(isPresented: $showBuyButton) {
+            InsertBuyButtonSheet(defaultLabel: config.shopping.shownButtonLabel) { link, label in
+                editor.buyButton(link: link, label: label)
+            }
+        }
         .sheet(isPresented: $choosingHoverVideo) {
             InsertFromFilesSheet(title: "Choose a Hover Video",
                                  message: "A short, silent clip works best: it plays muted and loops while the pointer is over the store tile. Pick one from your site's Files, or choose one from your Mac to copy it in.",
@@ -188,6 +194,24 @@ struct EditorView: View {
                             }
                         }
                     }
+                    // Configuration → Shopping: a Buy button after the page's
+                    // text. Shop items have their own Buy link above.
+                    if config.shopping.usesPaymentLinks && kind != .links && !current.isTemplatePage
+                        && !(kind.isItem && collection?.selling == true) {
+                        GridRow {
+                            label("Payment link")
+                            VStack(alignment: .leading, spacing: 2) {
+                                TextField("Optional: a Stripe Payment Link, like https://buy.stripe.com/…", text: field("buy"))
+                                if let note = paymentLinkNote {
+                                    Text(note).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        GridRow {
+                            label("Button")
+                            TextField(config.shopping.shownButtonLabel, text: field("buyLabel"))
+                        }
+                    }
                     if kind.isCategory || kind.isMain, let collection {
                         GridRow {
                             label("Lists")
@@ -234,9 +258,15 @@ struct EditorView: View {
 
             Divider()
 
-            FormattingBar(editor: editor, onUploadImage: chooseImages, onChooseFromFiles: { showFilePicker = true })
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
+            // Scrolls sideways when the editor is narrower than the bar, so
+            // no tools are cut off.
+            ScrollView(.horizontal, showsIndicators: false) {
+                FormattingBar(editor: editor, onUploadImage: chooseImages, onChooseFromFiles: { showFilePicker = true },
+                              showsBuyButton: config.shopping.usesPaymentLinks, onBuyButton: { showBuyButton = true })
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+            }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
 
             Divider()
 
@@ -385,6 +415,15 @@ struct EditorView: View {
     }
 
     /// A word on the hover video: what's wrong with it, or how it shows.
+    /// A hint under Payment link when it isn't a working link.
+    private var paymentLinkNote: String? {
+        let link = (current.frontMatter.string("buy") ?? "").trimmingCharacters(in: .whitespaces)
+        if link.isEmpty { return "Shows a Buy button after the page's text." }
+        if !BuyButton.isWebLink(link) { return "This isn't a web address yet, so no button shows. Paste the whole link, starting with https://." }
+        if !BuyButton.isStripeLink(link) { return "Not a Stripe Payment Link, but it still works as a Buy button." }
+        return nil
+    }
+
     private var hoverVideoNote: String? {
         let path = (current.frontMatter.string("hoverVideo") ?? "").trimmingCharacters(in: .whitespaces)
         guard !path.isEmpty else { return nil }
@@ -436,6 +475,9 @@ private struct FormattingBar: View {
     let editor: MarkdownEditorController
     let onUploadImage: () -> Void
     let onChooseFromFiles: () -> Void
+    /// Configuration → Shopping uses Stripe Payment Links.
+    var showsBuyButton = false
+    var onBuyButton: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 2) {
@@ -468,6 +510,9 @@ private struct FormattingBar: View {
             tool("rectangle.split.1x2", "Section break: in layouts with more than one area, the text after it goes in the next area", editor.sectionBreak)
             tool("envelope", "Mailing list sign-up box: set it up in Configuration → Mailing List", editor.newsletter)
             tool("magnifyingglass", "Search box: searching from it opens the Search page", editor.searchBox)
+            if showsBuyButton {
+                tool("cart.badge.plus", "Buy button: paste a Stripe Payment Link (Configuration → Shopping)", onBuyButton)
+            }
             separator
             Menu {
                 Button("Choose from Site Files…", systemImage: "photo.on.rectangle", action: onChooseFromFiles)

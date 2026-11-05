@@ -22,8 +22,13 @@ The Files page lists everything in one list, like Finder's list view. Folders co
 - **Open or close a folder**: click its triangle, or double-click the folder.
 - **Make a folder**: click **New Folder…** at the bottom. It goes inside the selected folder, so you can make folders inside folders. Or right-click a folder and choose **New Folder Inside…**.
 - **Move files**: drag them onto a folder. Hold them over a closed folder for a moment and it opens, so you can drop them into a folder inside it. Drop them in the empty space below the list to move them back to the top. Or right-click them and choose **Move To**. Select several first to move them together.
+- **Carry files to a far-off folder**: drag them onto the **Drop Bucket** above the buttons at the bottom. Then open the folder they go in and drag them out of the bucket onto it. Or select that one folder and click **Move Here**. You can fill the bucket from several folders, or from a search, before moving everything at once. Click ✕ to empty the bucket without moving anything.
 - **Rename, move or delete a folder**: right-click it. **Move to Trash…** puts the folder and everything in it in your Mac's Trash.
 - **Find a file anywhere**: searching or filtering looks in every folder, and each file shows which folder it's in.
+
+### Files folders are real folders
+
+Folders on the Files page are folders inside your site's `media` folder. You can see them in Finder, they're published with your site, and a folder's name is part of each file's web address. That's different from [folders in the Pages list](help:organize-pages), which only organize the list in CardStock and never change an address.
 
 Folder names become part of your files' web addresses (`/media/photos/2026/beach.jpg`), so they use lowercase letters, numbers and dashes: "Product Photos" becomes `product-photos`.
 

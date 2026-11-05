@@ -64,6 +64,11 @@ final class AppModel {
     private(set) var mediaFolders: [String] = []
     /// Folders open (twirled down) in the Files page's list.
     var expandedFileFolders: Set<String> = []
+    /// Files and folders put in the Files page's Drop Bucket, to carry to
+    /// another folder. Paths in media/, in the order they went in.
+    var bucketPaths: [String] = []
+    /// Folders open in the Pages list.
+    var expandedPageFolders: Set<String> = []
     /// The page selected on the Pages view; the preview column shows it.
     var selectedPageID: URL?
     /// The page shown in Configuration (Site Details, Fonts, Footer, …).
@@ -201,6 +206,8 @@ final class AppModel {
             chosenAccount = LocalData.gitHubAccount(in: url)
             selectedFileIDs = []
             expandedFileFolders = []
+            bucketPaths = []
+            expandedPageFolders = []
             selectedPageID = nil
             imageUndo = [:]
             storage = nil
@@ -886,6 +893,92 @@ final class AppModel {
         if previewTagSlug == slug { previewTagSlug = TagSettings.slug(name) }
     }
 
+    // MARK: - Folders in the Pages list
+
+    /// Every folder in the Pages list.
+    var pageFolders: [String] {
+        guard let site else { return [] }
+        return PageFolders.all(saved: site.config.pageFolders, pages: site.items.map(\.folder))
+    }
+
+    /// Makes a folder in the Pages list and returns its path.
+    @discardableResult
+    func newPageFolder(_ typed: String, in parent: String) -> String? {
+        guard var config = site?.config, let name = PageFolders.name(for: typed) else { return nil }
+        let path = PageFolders.join(parent, name)
+        guard !pageFolders.contains(path) else {
+            errorMessage = "There's already a folder named “\(name)” there."
+            return nil
+        }
+        config.pageFolders = PageFolders.all(saved: config.pageFolders + [path], pages: [])
+        log(.edit, "Made the page folder \(path)")
+        updateConfig(config)
+        return path
+    }
+
+    /// Puts pages in a folder (the top when empty).
+    func movePages(_ ids: [URL], to folder: String) {
+        guard let items = site?.items else { return }
+        let moving = items.filter { ids.contains($0.id) && $0.folder != folder }
+        guard !moving.isEmpty else { return }
+        for var item in moving {
+            item.folder = folder
+            update(item)
+        }
+        let place = folder.isEmpty ? "the top of Pages" : PageFolders.name(of: folder)
+        log(.edit, moving.count == 1 ? "Moved “\(moving[0].title)” to \(place)" : "Moved \(moving.count) pages to \(place)")
+    }
+
+    func renamePageFolder(_ path: String, to typed: String) {
+        guard let name = PageFolders.name(for: typed) else { return }
+        movePageFolder(path, to: PageFolders.join(PageFolders.parent(of: path), name))
+    }
+
+    func movePageFolder(_ path: String, into parent: String) {
+        movePageFolder(path, to: PageFolders.join(parent, PageFolders.name(of: path)))
+    }
+
+    /// Takes a folder out of the Pages list. What's in it moves up a level;
+    /// no pages are deleted.
+    func removePageFolder(_ path: String) {
+        guard var config = site?.config else { return }
+        let parent = PageFolders.parent(of: path)
+        rewritePageFolders(from: path, to: parent)
+        config = site?.config ?? config
+        config.pageFolders.removeAll { $0 == path }
+        config.pageFolders = PageFolders.all(saved: config.pageFolders.map { PageFolders.moved($0, from: path, to: parent) }, pages: [])
+        log(.edit, "Removed the page folder \(path)")
+        updateConfig(config)
+        expandedPageFolders = Set(expandedPageFolders.filter { $0 != path }.map { PageFolders.moved($0, from: path, to: parent) })
+    }
+
+    private func movePageFolder(_ from: String, to: String) {
+        if let problem = PageFolders.moveProblem(from: from, to: to, in: pageFolders) {
+            errorMessage = problem
+            return
+        }
+        guard from != to, var config = site?.config else { return }
+        rewritePageFolders(from: from, to: to)
+        config = site?.config ?? config
+        // Keep the folder (and everything in it) even when it holds no pages.
+        let inside = pageFolders.filter { PageFolders.isInside($0, from) }
+        config.pageFolders = (config.pageFolders.filter { !PageFolders.isInside($0, from) }
+            + inside.map { PageFolders.moved($0, from: from, to: to) })
+        config.pageFolders = PageFolders.all(saved: config.pageFolders, pages: [])
+        log(.edit, "Moved the page folder \(from) to \(to)")
+        updateConfig(config)
+        expandedPageFolders = Set(expandedPageFolders.map { PageFolders.moved($0, from: from, to: to) })
+    }
+
+    /// Moves every page in `from` (and folders inside it) to `to`.
+    private func rewritePageFolders(from: String, to: String) {
+        guard let items = site?.items else { return }
+        for var item in items where !item.folder.isEmpty && PageFolders.isInside(item.folder, from) {
+            item.folder = PageFolders.moved(item.folder, from: from, to: to)
+            update(item)
+        }
+    }
+
     /// Takes a tag off every page and out of site.json.
     func deleteTag(_ slug: String) {
         guard var config = site?.config, let items = site?.items else { return }
@@ -1020,6 +1113,11 @@ final class AppModel {
         if scanned != files { files = scanned }
         let folders = MediaLibrary.folders(in: site.root)
         if folders != mediaFolders { mediaFolders = folders }
+        // Drop what left the bucket some other way (moved, trashed, Finder).
+        let existing = Set(scanned.map(\.path)).union(folders)
+        if bucketPaths.contains(where: { !existing.contains($0) }) {
+            bucketPaths.removeAll { !existing.contains($0) }
+        }
         // Forget open folders that were renamed or removed (here or in Finder).
         let open = expandedFileFolders.intersection(folders)
         if open != expandedFileFolders { expandedFileFolders = open }
@@ -1110,8 +1208,6 @@ final class AppModel {
                 expanded = Set(expanded.map(follow))
                 // Folder rows are selected as "folder:<path>".
                 selected = Set(selected.map { $0.hasPrefix("folder:") ? "folder:" + follow(String($0.dropFirst(7))) : $0 })
-                // Show the folder where it went.
-                expanded.formUnion(MediaLibrary.ancestors(of: to))
                 log(.edit, "Moved the folder \(from) to \(to)")
             }
             if !moves.isEmpty {
@@ -1119,10 +1215,6 @@ final class AppModel {
                 log(.edit, "Moved \(moves.count) \(moves.count == 1 ? "file" : "files") and updated links to \(moves.count == 1 ? "it" : "them")",
                     detail: moves.sorted { $0.key < $1.key }.map { "\($0.key) → \($0.value)" }.joined(separator: "\n"))
                 reload()
-            }
-            if folderMove == nil {
-                // Open the folders the files went into, so they stay in view.
-                for path in selected { if let to = moves[path] { expanded.formUnion(MediaLibrary.ancestors(of: MediaLibrary.parent(of: to))) } }
             }
             expandedFileFolders = expanded
             selectedFileIDs = Set(selected.map { moves[$0] ?? $0 })

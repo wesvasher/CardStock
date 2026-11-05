@@ -66,6 +66,13 @@ struct SiteConfig: Codable, Equatable, Sendable {
     /// Your own folders: short addresses like /subscribe/ that show a page
     /// (Configuration → Folders).
     var folders: [Folder] = []
+    /// Folders in the Pages list, kept here so empty ones stay (`Recipes`,
+    /// `Recipes/Soups`). Pages say which they're in with `folder:` front
+    /// matter. They only organize the list; addresses don't change.
+    var pageFolders: [String] = []
+    /// Selling: the checkout service and Buy button text (Configuration →
+    /// Shopping).
+    var shopping = Shopping()
     /// nil when site.json has no `collections` yet; `Site.load` fills in
     /// the defaults so they're saved with the next change.
     var storedCollections: [ContentCollection]?
@@ -77,7 +84,7 @@ struct SiteConfig: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case title, description, author, url, language, icon, nav, header, footer, newsletter, search, tags, addressVersion, folders
+        case title, description, author, url, language, icon, nav, header, footer, newsletter, search, tags, addressVersion, folders, pageFolders, shopping
         case storedCollections = "collections"
     }
 
@@ -515,6 +522,8 @@ struct SiteConfig: Codable, Equatable, Sendable {
         tags = try c.decodeIfPresent(TagSettings.self, forKey: .tags) ?? TagSettings()
         addressVersion = try c.decodeIfPresent(Int.self, forKey: .addressVersion) ?? 1
         folders = try c.decodeIfPresent([Folder].self, forKey: .folders) ?? []
+        pageFolders = try c.decodeIfPresent([String].self, forKey: .pageFolders) ?? []
+        shopping = try c.decodeIfPresent(Shopping.self, forKey: .shopping) ?? Shopping()
         storedCollections = try c.decodeIfPresent([ContentCollection].self, forKey: .storedCollections)
     }
 
@@ -578,6 +587,13 @@ struct ContentItem: Identifiable, Equatable, Sendable {
     var layout: String {
         get { frontMatter.string("layout") ?? "" }
         set { frontMatter.setString("layout", newValue) }
+    }
+
+    /// The page's folder in the Pages list (`Recipes/Soups`), or empty at
+    /// the top. Only organizes the list; the address doesn't change.
+    var folder: String {
+        get { PageFolders.normalized(frontMatter.string("folder") ?? "") }
+        set { frontMatter.setString("folder", PageFolders.normalized(newValue)) }
     }
 
     var isDraft: Bool {

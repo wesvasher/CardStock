@@ -12,6 +12,18 @@ struct PagesView: View {
     @State private var filter = PageFilter.all
     @State private var sort = PageSort.type
     @State private var showNewPage = false
+    /// The folder being named: a new one (inside `parent`) or a rename.
+    @State private var naming: FolderNaming?
+    @State private var folderName = ""
+    @State private var pendingFolderRemove: String?
+    /// Pages selected in the list (⌘- and ⇧-click select more). The editor
+    /// shows one of them, `model.selectedPageID`: the one last clicked.
+    @State private var selectedIDs: Set<URL> = []
+
+    private enum FolderNaming: Equatable {
+        case new(parent: String)
+        case rename(String)
+    }
 
     enum PageFilter: Hashable {
         case all
@@ -106,6 +118,9 @@ struct PagesView: View {
 
     private var isFiltered: Bool { filter != .all || !query.isEmpty }
 
+    /// Without a search or filter, pages are shown in their folders.
+    private var isBrowsing: Bool { !isFiltered }
+
     private var clearTitle: String {
         switch (filter != .all, !query.isEmpty) {
         case (true, true): "Clear Filters and Search"
@@ -127,15 +142,17 @@ struct PagesView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List(shown, selection: pageSelection) { page in
-                    row(page)
-                        .tag(page.id)
-                        .contextMenu {
-                            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([page.fileURL]) }
-                        }
+                List(selection: $selectedIDs) {
+                    if isBrowsing {
+                        contents(of: PageFolders.top, pages: shown)
+                    } else {
+                        ForEach(shown) { pageRow($0) }
+                    }
                 }
                 .listStyle(.inset)
                 .scrollContentBackground(.hidden)
+                // Dropped on empty space below the rows: back to the top.
+                .dropDestination(for: String.self) { items, _ in _ = drop(items, into: PageFolders.top) }
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { footer }
@@ -143,7 +160,228 @@ struct PagesView: View {
         .onAppear {
             // Start with a page selected so the preview shows something.
             if model.selectedPage == nil { model.selectedPageID = shown.first?.id }
+            selectedIDs = model.selectedPageID.map { [$0] } ?? []
+            revealSelectedPage()
         }
+        .onChange(of: selectedIDs) { old, new in
+            // The page just clicked goes in the editor; otherwise keep the
+            // one shown while it's still selected.
+            let added = new.subtracting(old)
+            if added.count == 1 {
+                model.selectedPageID = added.first
+            } else if let current = model.selectedPageID, new.contains(current) {
+                return
+            } else {
+                model.selectedPageID = shown.first { new.contains($0.id) }?.id
+            }
+        }
+        .onChange(of: model.selectedPageID) {
+            // Opened from elsewhere in the app: select just that page.
+            if let id = model.selectedPageID, !selectedIDs.contains(id) { selectedIDs = [id] }
+            revealSelectedPage()
+        }
+        .alert(isRenaming ? "Rename Folder" : "New Folder",
+               isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
+            TextField("Name", text: $folderName)
+            Button("Cancel", role: .cancel) { naming = nil }
+            Button(isRenaming ? "Rename" : "Create") { finishNaming() }
+                .disabled(PageFolders.name(for: folderName) == nil)
+        } message: {
+            Text("Folders only organize this list. Pages keep their addresses.")
+        }
+        .confirmationDialog("Remove “\(pendingFolderRemove.map(PageFolders.name(of:)) ?? "")”?",
+                            isPresented: Binding(get: { pendingFolderRemove != nil },
+                                                 set: { if !$0 { pendingFolderRemove = nil } })) {
+            Button("Remove Folder") {
+                if let path = pendingFolderRemove { model.removePageFolder(path) }
+                pendingFolderRemove = nil
+            }
+        } message: {
+            Text(removeMessage)
+        }
+    }
+
+    // MARK: - Folders
+
+    private var isRenaming: Bool {
+        if case .rename = naming { return true }
+        return false
+    }
+
+    private func startNewFolder(in parent: String) {
+        folderName = ""
+        naming = .new(parent: parent)
+    }
+
+    private func finishNaming() {
+        switch naming {
+        case .new(let parent):
+            if model.newPageFolder(folderName, in: parent) != nil {
+                // Show the new folder where it was made.
+                model.expandedPageFolders.formUnion(PageFolders.ancestors(of: parent))
+            }
+        case .rename(let path):
+            model.renamePageFolder(path, to: folderName)
+        case nil:
+            break
+        }
+        naming = nil
+    }
+
+    private var removeMessage: String {
+        guard let path = pendingFolderRemove else { return "" }
+        let count = pages.filter { PageFolders.isInside($0.folder, path) && !$0.folder.isEmpty }.count
+        let place = PageFolders.parent(of: path).isEmpty ? "the top of the list" : PageFolders.name(of: PageFolders.parent(of: path))
+        guard count > 0 else { return "It's empty." }
+        return "The \(count) \(count == 1 ? "page" : "pages") in it move to \(place). No pages are deleted."
+    }
+
+    /// Opens the folders holding the selected page, so it's in view.
+    private func revealSelectedPage() {
+        guard let page = model.selectedPage, !page.folder.isEmpty else { return }
+        model.expandedPageFolders.formUnion(PageFolders.ancestors(of: page.folder))
+    }
+
+    private func isExpanded(_ path: String) -> Binding<Bool> {
+        Binding(get: { model.expandedPageFolders.contains(path) },
+                set: { open in
+                    if open { model.expandedPageFolders.insert(path) } else { model.expandedPageFolders.remove(path) }
+                })
+    }
+
+    private func toggle(_ path: String) {
+        withAnimation(.snappy(duration: 0.2)) {
+            if model.expandedPageFolders.contains(path) {
+                model.expandedPageFolders.remove(path)
+            } else {
+                model.expandedPageFolders.insert(path)
+            }
+        }
+    }
+
+    /// The folders inside `parent`, each opening to show its own contents,
+    /// then its pages, in the chosen order. (AnyView, since it contains itself.)
+    private func contents(of parent: String, pages: [ContentItem]) -> AnyView {
+        let folders = PageFolders.children(of: parent, in: model.pageFolders)
+        return AnyView(Group {
+            ForEach(folders, id: \.self) { path in
+                DisclosureGroup(isExpanded: isExpanded(path)) {
+                    contents(of: path, pages: pages)
+                } label: {
+                    FolderDropTarget(isOpen: model.expandedPageFolders.contains(path)) {
+                        folderRow(path, pages: pages)
+                    } onDrop: { items in
+                        drop(items, into: path)
+                    } onHover: {
+                        withAnimation(.snappy(duration: 0.2)) { _ = model.expandedPageFolders.insert(path) }
+                    }
+                    .draggable(Self.dragPrefix + Self.folderLine + path)
+                    .contextMenu { folderMenu(path) }
+                }
+            }
+            ForEach(pages.filter { $0.folder == parent }) { pageRow($0) }
+        })
+    }
+
+    private func folderRow(_ path: String, pages: [ContentItem]) -> some View {
+        let count = pages.filter { !$0.folder.isEmpty && PageFolders.isInside($0.folder, path) }.count
+        return Label {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(PageFolders.name(of: path)).lineLimit(1)
+                Text(count == 0 ? "Empty" : "\(count) \(count == 1 ? "page" : "pages")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+        } icon: {
+            Image(systemName: "folder.fill").foregroundStyle(.tint)
+        }
+        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) { toggle(path) }
+        .help("Click the triangle or double-click to show the pages inside. Drop pages here to move them in.")
+    }
+
+    @ViewBuilder
+    private func folderMenu(_ path: String) -> some View {
+        Button(model.expandedPageFolders.contains(path) ? "Collapse" : "Expand") { toggle(path) }
+        Button("New Folder Inside…") { startNewFolder(in: path) }
+        Button("Rename…") {
+            folderName = PageFolders.name(of: path)
+            naming = .rename(path)
+        }
+        moveMenu(excluding: { $0 == PageFolders.parent(of: path) || (!$0.isEmpty && PageFolders.isInside($0, path)) }) {
+            model.movePageFolder(path, into: $0)
+        }
+        Divider()
+        Button("Remove Folder…") { pendingFolderRemove = path }
+    }
+
+    /// Every folder, indented by depth, for Move To menus.
+    private func moveMenu(title: String = "Move To", excluding: @escaping (String) -> Bool,
+                          move: @escaping (String) -> Void) -> some View {
+        Menu(title) {
+            Button("Pages (top level)") { move(PageFolders.top) }
+                .disabled(excluding(PageFolders.top))
+            if !model.pageFolders.isEmpty { Divider() }
+            ForEach(model.pageFolders, id: \.self) { path in
+                let depth = path.split(separator: "/").count - 1
+                Button(String(repeating: "    ", count: depth) + PageFolders.name(of: path)) { move(path) }
+                    .disabled(excluding(path))
+            }
+            Divider()
+            Button("New Folder…") { startNewFolder(in: PageFolders.top) }
+        }
+    }
+
+    /// Pages and folders being dragged: `cardstock-pages:`, then a line
+    /// per page (its file path) or folder (`folder:` and its path).
+    private static let dragPrefix = "cardstock-pages:"
+    private static let folderLine = "folder:"
+
+    /// Moves dropped pages and folders into `destination`.
+    private func drop(_ payloads: [String], into destination: String) -> Bool {
+        let lines = payloads.flatMap { text -> [String] in
+            guard text.hasPrefix(Self.dragPrefix) else { return [] }
+            return text.dropFirst(Self.dragPrefix.count).split(separator: "\n").map(String.init)
+        }
+        guard !lines.isEmpty else { return false }
+        for line in lines where line.hasPrefix(Self.folderLine) {
+            let path = String(line.dropFirst(Self.folderLine.count))
+            if path != destination && PageFolders.parent(of: path) != destination
+                && (destination.isEmpty || !PageFolders.isInside(destination, path)) {
+                model.movePageFolder(path, into: destination)
+            }
+        }
+        let ids = lines.filter { !$0.hasPrefix(Self.folderLine) }.map { URL(filePath: $0) }
+        if !ids.isEmpty { model.movePages(ids, to: destination) }
+        return true
+    }
+
+    /// The page, or every selected page when it's one of them.
+    private func pagesActedOn(_ page: ContentItem) -> [ContentItem] {
+        guard selectedIDs.contains(page.id), selectedIDs.count > 1 else { return [page] }
+        return shown.filter { selectedIDs.contains($0.id) }
+    }
+
+    private func pageRow(_ page: ContentItem) -> some View {
+        let group = pagesActedOn(page)
+        return row(page)
+            .tag(page.id)
+            .draggable(Self.dragPrefix + group.map(\.fileURL.path).joined(separator: "\n")) {
+                Label(group.count == 1 ? page.title : "\(group.count) pages", systemImage: group.count == 1 ? "doc" : "doc.on.doc")
+                    .padding(6)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            }
+            .contextMenu {
+                moveMenu(title: group.count == 1 ? "Move To" : "Move \(group.count) Pages To",
+                         excluding: { folder in group.allSatisfy { $0.folder == folder } }) {
+                    model.movePages(group.map(\.id), to: $0)
+                }
+                Divider()
+                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(group.map(\.fileURL)) }
+            }
     }
 
     // MARK: - Header and footer
@@ -178,6 +416,7 @@ struct PagesView: View {
         if isFiltered { text += " (of \(pages.count))" }
         let drafts = shown.filter(\.isDraft).count
         if drafts > 0 && filter != .drafts { text += " · \(drafts) \(drafts == 1 ? "draft" : "drafts")" }
+        if selectedIDs.count > 1 { text += " · \(selectedIDs.count) selected" }
         return text
     }
 
@@ -229,6 +468,16 @@ struct PagesView: View {
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .capsule)
+            Button { startNewFolder(in: PageFolders.top) } label: {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 14, weight: .medium))
+                    .frame(width: 30, height: 30)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .roundGlass(30)
+            .help("New Folder: group pages in this list. Their addresses don't change.")
+            .accessibilityLabel("New Folder")
             Spacer()
         }
         .padding(.horizontal, 16)
@@ -238,10 +487,6 @@ struct PagesView: View {
     }
 
     // MARK: - Rows
-
-    private var pageSelection: Binding<URL?> {
-        Binding(get: { model.selectedPageID }, set: { model.selectedPageID = $0 })
-    }
 
     /// A standard list row: icon, title, and the address with its state.
     private func row(_ page: ContentItem) -> some View {
@@ -273,6 +518,7 @@ struct PagesView: View {
         var parts = [page.isHome ? "Home" : page.isNotFoundPage ? "Broken links" : config.singularName(page.kind), page.path]
         if let layout = model.site?.layouts.first(where: { $0.id == page.layout }) { parts.append(layout.name) }
         if page.isDraft && !page.isHome { parts.append("Draft") }
+        if !isBrowsing && !page.folder.isEmpty { parts.append("In \(PageFolders.name(of: page.folder))") }
         if menuURLs.contains(page.path) { parts.append("In Menu") }
         // Short addresses from Configuration → Folders.
         for folder in config.folders where folder.page == page.slug { parts.append("Also \(folder.path)") }

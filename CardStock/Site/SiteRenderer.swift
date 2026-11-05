@@ -27,6 +27,8 @@ struct SiteRenderer: Sendable {
     /// A sample page with the newsletter box, for Configuration → Mailing List's
     /// preview. Never published.
     static let newsletterPreviewPath = "/_newsletter/"
+    /// Configuration → Shopping's sample page with a Buy button (preview only).
+    static let shoppingPreviewPath = "/_shopping/"
     /// Just the footer, for the previews on Configuration → Footer. Never published.
     static let footerPreviewPath = "/_footer/"
     /// The Search page's template (pages/search.md, at /pages/search/).
@@ -105,6 +107,8 @@ struct SiteRenderer: Sendable {
             return wrap(templates[Self.templatePageTemplate]!.render(.dict(context)), context: context)
         case Self.newsletterPreviewPath:
             return render(newsletterSample())
+        case Self.shoppingPreviewPath:
+            return render(shoppingSample())
         case Self.footerPreviewPath:
             return Self.showingOnlyFooter(render(footerSample()))
         case Self.searchIndexPath:
@@ -651,6 +655,18 @@ struct SiteRenderer: Sendable {
         return html
     }
 
+    /// The Buy button from Page Settings' Payment link, after the text of
+    /// pages that aren't shop items (those have their own). Only while
+    /// Configuration → Shopping uses Stripe Payment Links.
+    func pageBuyButtonHTML(_ item: ContentItem) -> String {
+        guard site.config.shopping.usesPaymentLinks, !item.isLinkMenu else { return "" }
+        if item.kind.isItem, site.collection(for: item.kind)?.selling == true { return "" }
+        let link = (item.frontMatter.string("buy") ?? "").trimmingCharacters(in: .whitespaces)
+        guard BuyButton.isWebLink(link) else { return "" }
+        let label = (item.frontMatter.string("buyLabel") ?? "").trimmingCharacters(in: .whitespaces)
+        return BuyButton.html(link: link, label: label.isEmpty ? site.config.shopping.shownButtonLabel : label)
+    }
+
     /// Shown below an item's text: the Buy button, when it's for sale.
     private func actionsHTML(_ item: ContentItem) -> String {
         guard item.kind.isItem, site.collection(for: item.kind)?.selling == true else { return "" }
@@ -687,6 +703,23 @@ struct SiteRenderer: Sendable {
     }
 
     /// A sample page in a layout, for the Layouts page's preview.
+    /// The page shown in Configuration → Shopping's preview.
+    func shoppingSample() -> ContentItem {
+        let text = """
+        ---
+        title: Shopping
+        summary: A sample page for previewing Buy buttons.
+        ---
+
+        A Buy button can go anywhere in a page. Add one with the cart button in the formatting bar, and paste your Stripe Payment Link.
+
+        \(BuyButton.marker(link: "https://buy.stripe.com/test_sample", label: site.config.shopping.shownButtonLabel))
+
+        Clicking it opens Stripe's checkout page in a new tab.
+        """
+        return ContentItem(fileURL: site.root.appending(path: "pages/_shopping-sample.md"), text: text)
+    }
+
     /// The page shown in Configuration → Mailing List's preview.
     func newsletterSample() -> ContentItem {
         let text = """
@@ -876,12 +909,12 @@ struct SiteRenderer: Sendable {
             let label = item.frontMatter.string("buyLabel") ?? ""
             dict["buyLabel"] = .string(label.isEmpty ? "Buy Now" : label)
         }
-        dict["content"] = .string(Self.markdownToHTML(item.body))
+        dict["content"] = .string(Self.markdownToHTML(item.body) + pageBuyButtonHTML(item))
         return .dict(dict)
     }
 
     static func markdownToHTML(_ markdown: String) -> String {
-        HTMLFormatter.format(SiteConfig.Newsletter.markPlaces(in: VideoEmbed.markPlaces(in: markdown)))
+        HTMLFormatter.format(SiteConfig.Newsletter.markPlaces(in: BuyButton.markPlaces(in: VideoEmbed.markPlaces(in: markdown))))
     }
 
     private static let isoDate: DateFormatter = {

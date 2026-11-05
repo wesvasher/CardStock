@@ -39,7 +39,7 @@ Category pages fill themselves in. Drafts are left out until you publish them. T
 
 ## Selling with a Product page
 
-Your site is plain web pages, so it can't take payments itself. Make a checkout link with a service such as Stripe Payment Links, Gumroad, Etsy, Shopify or PayPal, and paste it into **Buy link**. The Buy button opens it in a new tab. **Button** changes the button's text; it says **Buy Now** if you leave it empty. Any collection can sell: turn on **Price and Buy button** in its settings.
+Your site is plain web pages, so it can't take payments itself. Make a checkout link with a service such as Stripe Payment Links, Gumroad, Etsy, Shopify or PayPal, and paste it into **Buy link**. The Buy button opens it in a new tab. **Button** changes the button's text; it says **Buy Now** if you leave it empty. Any collection can sell: turn on **Price and Buy button** in its settings. To add Buy buttons to other pages, see [Sell with Stripe Payment Links](help:shopping).
 
 ## The details above the text
 

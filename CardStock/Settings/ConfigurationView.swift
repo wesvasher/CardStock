@@ -3,7 +3,7 @@ import SwiftUI
 
 /// One page of the Configuration view.
 enum ConfigPage: String, CaseIterable, Identifiable {
-    case site, collections, folders, tags, templates, layouts, fonts, colors, topBar, footer, components, newsletter, search
+    case site, collections, folders, tags, templates, layouts, fonts, colors, topBar, footer, components, newsletter, search, shopping
 
     var id: Self { self }
 
@@ -31,6 +31,7 @@ enum ConfigPage: String, CaseIterable, Identifiable {
         case .components: "Components"
         case .newsletter: "Mailing List"
         case .search: "Search"
+        case .shopping: "Shopping"
         }
     }
 
@@ -49,6 +50,7 @@ enum ConfigPage: String, CaseIterable, Identifiable {
         case .components: "Buttons, cards, images and more"
         case .newsletter: "A sign-up box for your pages"
         case .search: "A search page and search boxes"
+        case .shopping: "Checkout and Buy buttons"
         }
     }
 
@@ -67,6 +69,7 @@ enum ConfigPage: String, CaseIterable, Identifiable {
         case .components: "square.on.square"
         case .newsletter: "envelope"
         case .search: "magnifyingglass"
+        case .shopping: "cart"
         }
     }
 }
@@ -107,6 +110,8 @@ struct ConfigurationView<Preview: View>: View {
                 }
             }
             .clipped()
+            // Settings and preview each keep at least 360 points.
+            .frame(minWidth: showPreview ? 721 : 360)
         }
     }
 
