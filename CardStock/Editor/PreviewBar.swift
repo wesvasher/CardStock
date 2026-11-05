@@ -84,29 +84,49 @@ struct PreviewBar: View {
         }
     }
 
-    /// The page file for what the preview shows.
-    private var shownPage: ContentItem? { model.site?.item(atAddress: navigator.address) }
-
-    /// Already open in the Pages view's editor.
-    private var isEditing: Bool {
-        model.selection == .pages && shownPage?.id == model.selectedPageID
+    /// What the pencil opens for the page in the preview.
+    private enum EditTarget {
+        case page(ContentItem)
+        /// A collection's main page that has no file yet: opening it makes one.
+        case mainPage(ContentCollection)
     }
 
-    /// Pencil: opens the page shown in the preview in the editor.
+    private var editTarget: EditTarget? {
+        guard let site = model.site else { return nil }
+        if let page = site.item(atAddress: navigator.address) { return .page(page) }
+        var path = navigator.address.hasSuffix("/index.html") ? String(navigator.address.dropLast("index.html".count)) : navigator.address
+        if !path.hasSuffix("/") { path += "/" }
+        if let collection = site.config.collections.first(where: { $0.mainPath == path }) { return .mainPage(collection) }
+        return nil
+    }
+
+    /// Pencil: opens the page shown in the preview in the editor. It's
+    /// dimmed, not disabled, when there's nothing to open, so its tooltip
+    /// still says why (disabled buttons show none).
     private var editButton: some View {
-        let page = shownPage
-        let enabled = page != nil && !isEditing
-        let help = if let page {
-            isEditing ? "“\(page.title)” is open in the editor" : "Edit “\(page.title)”"
-        } else {
-            "This page has no text of its own to edit"
+        let target = editTarget
+        let editing: ContentItem? = if case .page(let page) = target, model.selection == .pages,
+                                       page.id == model.selectedPageID { page } else { nil }
+        let help: String
+        switch target {
+        case .page(let page):
+            help = editing != nil ? "“\(page.title)” is open in the editor" : "Edit “\(page.title)”"
+        case .mainPage(let collection):
+            help = "Edit the \(collection.name) main page: the text above its list"
+        case nil:
+            help = "This page is made by CardStock (like tag pages and previews), so it has no text of its own to edit"
         }
-        return roundButton("pencil", help: help, enabled: enabled) {
-            if let page { model.selection = .item(page.id) }
+        return roundButton("pencil", help: help, enabled: target != nil && editing == nil, disables: false) {
+            switch target {
+            case .page(let page): if editing == nil { model.selection = .item(page.id) }
+            case .mainPage(let collection): model.openMainPage(of: collection)
+            case nil: break
+            }
         }
     }
 
-    private func roundButton(_ symbol: String, help: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+    private func roundButton(_ symbol: String, help: String, enabled: Bool, disables: Bool = true,
+                             action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 15, weight: .medium))
@@ -116,7 +136,7 @@ struct PreviewBar: View {
         .buttonStyle(.plain)
         .foregroundStyle(enabled ? Color.primary : Color.secondary.opacity(0.5))
         .roundGlass(Self.controlHeight, interactive: enabled)
-        .disabled(!enabled)
+        .disabled(disables && !enabled)
         .help(help)
     }
 }

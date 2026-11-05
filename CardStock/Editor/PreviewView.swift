@@ -30,7 +30,7 @@ struct PreviewView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         let c = context.coordinator
         c.handler.site = site
-        navigator?.attach(webView)
+        c.navigator = navigator
         if webView.pageZoom != zoom {
             webView.pageZoom = zoom
         }
@@ -58,6 +58,14 @@ struct PreviewView: NSViewRepresentable {
         let handler = PreviewSchemeHandler()
         var loadedPath: String?
         var loadedRevision = 0
+        var navigator: PreviewNavigator?
+
+        /// The bar follows the preview that loaded a page last, so a web
+        /// view being replaced (switching views or devices) can't leave it
+        /// showing, and editing, an old address.
+        func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            navigator?.attach(webView)
+        }
 
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction) async -> WKNavigationActionPolicy {
             guard let url = action.request.url else { return .cancel }
