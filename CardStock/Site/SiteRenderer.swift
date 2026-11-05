@@ -673,7 +673,7 @@ struct SiteRenderer: Sendable {
         let buy = item.frontMatter.string("buy") ?? ""
         guard !buy.isEmpty else { return "" }
         let label = item.frontMatter.string("buyLabel").flatMap { $0.isEmpty ? nil : $0 } ?? "Buy Now"
-        return #"<p><a class="button buy" href="\#(escapeHTML(buy))" target="_blank" rel="noopener">\#(escapeHTML(label))</a></p>"#
+        return "<p>" + BuyButton.anchor(link: buy, label: label, className: "button buy") + "</p>"
     }
 
     private func categoryLinksHTML(_ item: ContentItem) -> String {

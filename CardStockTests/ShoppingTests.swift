@@ -42,7 +42,8 @@ struct ShoppingTests {
         """
         #expect(BuyButton.isUsed(in: markdown))
         let html = SiteRenderer.markdownToHTML(markdown)
-        #expect(html.contains(#"<a class="button buy" href="https://buy.stripe.com/abc" target="_blank" rel="noopener">Buy &lt;now&gt;</a>"#))
+        #expect(html.contains(#"<a class="button buy" href="https://buy.stripe.com/abc" target="_blank" rel="noopener" aria-label="Buy &lt;now&gt; (opens in a new tab)">Buy &lt;now&gt;<svg class="buy-icon""#))
+        #expect(BuyButton.newWindowIcon.contains("M15 3h6v6"))
         // Lines in code blocks stay as text.
         #expect(!html.contains(#"href="https://buy.stripe.com/code""#))
         #expect(!BuyButton.isUsed(in: "```\n<!-- buy https://buy.stripe.com/code -->\n```"))

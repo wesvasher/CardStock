@@ -127,7 +127,20 @@ enum BuyButton {
 
     /// The button: the theme's button style, opening checkout in a new tab.
     static func html(link: String, label: String) -> String {
-        let text = label.trimmingCharacters(in: .whitespaces).isEmpty ? defaultLabel : label
-        return #"<p class="buy-button"><a class="button buy" href="\#(escapeHTML(link))" target="_blank" rel="noopener">\#(escapeHTML(text))</a></p>"#
+        #"<p class="buy-button">"# + anchor(link: link, label: label, className: "button buy") + "</p>"
     }
+
+    /// A Buy link that opens checkout in a new tab (or window, as the
+    /// visitor's browser does it), with the open-in-new-window icon after
+    /// the text. Screen readers hear that it opens a new tab.
+    static func anchor(link: String, label: String, className: String) -> String {
+        let text = escapeHTML(label.trimmingCharacters(in: .whitespaces).isEmpty ? defaultLabel : label)
+        return #"<a class="\#(className)" href="\#(escapeHTML(link))" target="_blank" rel="noopener" aria-label="\#(text) (opens in a new tab)">"#
+            + text + newWindowIcon + "</a>"
+    }
+
+    /// Lucide's external-link icon (ISC), in the button's text color and
+    /// the text's size, so it works with any theme.
+    static let newWindowIcon = #"<svg class="buy-icon" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-0.125em;margin-left:0.4em">"#
+        + (NavIcon.named("external-link")?.inner ?? "") + "</svg>"
 }

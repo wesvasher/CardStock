@@ -92,7 +92,7 @@ struct PageTypeTests {
 
         let mug = try #require(renderer.render(path: "/shop/pages/blue-mug/"))
         #expect(mug.contains(#"<p class="price">$24</p>"#))
-        #expect(mug.contains(#"<a class="button buy" href="https://buy.stripe.com/abc" target="_blank" rel="noopener">Buy Now</a>"#))
+        #expect(mug.contains(#"<a class="button buy" href="https://buy.stripe.com/abc" target="_blank" rel="noopener" aria-label="Buy Now (opens in a new tab)">Buy Now<svg class="buy-icon""#))
 
         let shop = try #require(renderer.render(path: "/shop/"))
         #expect(shop.contains("Blue Mug") && shop.contains("Plate"))

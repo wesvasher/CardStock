@@ -256,7 +256,7 @@ A line holding only a YouTube or Vimeo link (bare or in `<…>`), or a YouTube o
 
 ### Newsletter box
 
-A line holding only `<!-- buy <link> "<text>" -->` (any case or spacing, not inside a code block; the text is optional and defaults to `Buy Now`) is a Buy button: `<p class="buy-button"><a class="button buy" href="<link>" target="_blank" rel="noopener"><text></a></p>`. The link must be an `http` or `https` address, usually a Stripe Payment Link (`https://buy.stripe.com/…`). These show whatever `shopping.provider` is.
+A line holding only `<!-- buy <link> "<text>" -->` (any case or spacing, not inside a code block; the text is optional and defaults to `Buy Now`) is a Buy button: `<p class="buy-button"><a class="button buy" href="<link>" target="_blank" rel="noopener" aria-label="<text> (opens in a new tab)"><text><svg class="buy-icon" …></svg></a></p>`, ending with an open-in-new-window icon (Lucide's external-link, `1em`, in the text color). Every Buy button CardStock makes (these, Page Settings' Payment link and an item page's Buy button) looks this way. The link must be an `http` or `https` address, usually a Stripe Payment Link (`https://buy.stripe.com/…`). These show whatever `shopping.provider` is.
 
 A line holding only `<!-- newsletter -->` (any case or spacing, not inside a code block) marks where a page shows the newsletter sign-up box. It's set in `site.json`:
 
