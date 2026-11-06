@@ -122,6 +122,30 @@ struct CollectionTests {
         #expect(videos.contains("https://i.ytimg.com/vi/abc_DEF-123/hqdefault.jpg"))
     }
 
+    @Test func cardListStyle() throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let root = try siteWithCollections()
+        var site = try Site.load(from: root)
+        let i = try #require(site.config.collections.firstIndex { $0.id == "work" })
+        site.config.collections[i].listStyle = .cardList
+        site.config.collections[i].listDates = true
+        site.config.collections[i].listImages = true
+        site.config.collections[i].sort = .title
+        try site.saveConfig()
+        let loaded = try Site.load(from: root)
+        #expect(loaded.config.collection("work")?.listStyle == .cardList, "saved as card-list")
+        #expect(try String(contentsOf: root.appending(path: "site.json"), encoding: .utf8).contains(#""listStyle" : "card-list""#)
+            || String(contentsOf: root.appending(path: "site.json"), encoding: .utf8).contains(#""listStyle":"card-list""#))
+
+        let work = try #require(try SiteRenderer(site: loaded).render(path: "/work/"))
+        // One card per row, in the theme's card look, with the image first.
+        #expect(work.contains(#"<div class="collection-card-list"><a class="project-card list-card" href="/work/pages/bridge/"><img class="list-card-image" src="/media/bridge.jpg" alt="" loading="lazy"><div class="list-card-text"><h2>Bridge</h2><time datetime="2025-01-01">"#))
+        // A card without a cover has no image.
+        #expect(work.contains(#"<a class="project-card list-card" href="/work/pages/chair/"><div class="list-card-text"><h2>Chair</h2>"#))
+        // Its styles go in, and no grid columns.
+        #expect(work.contains(".collection-card-list {") && !work.contains(#"collection-card-list" style="--cols"#))
+    }
+
     @Test func settingsChangeWhatPagesShow() throws {
         defer { try? FileManager.default.removeItem(at: dir) }
         let root = try siteWithCollections()

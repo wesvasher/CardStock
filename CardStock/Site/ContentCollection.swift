@@ -55,6 +55,9 @@ struct ContentCollection: Codable, Equatable, Sendable, Identifiable {
         case list
         /// Cards in a grid: image, title, price and summary.
         case cards
+        /// One card per row: the title, date and summary (and an image on
+        /// the left), in the theme's card look.
+        case cardList = "card-list"
         /// Images in a grid, with the title under each.
         case gallery
         /// Store tiles: a tall photo, the name on one line, and the price

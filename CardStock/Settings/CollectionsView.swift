@@ -203,13 +203,15 @@ private struct CollectionSettings: View {
                           help: "Rows with the title, date and summary"),
                     .init(value: .cards, title: "Cards", systemImage: "square.grid.2x2",
                           help: "Cards with an image, title, price and summary"),
+                    .init(value: .cardList, title: "Card List", systemImage: "rectangle.grid.1x2",
+                          help: "A list with each item in its own rounded card: title, date and summary, and an image on the left"),
                     .init(value: .gallery, title: "Gallery", systemImage: "photo.on.rectangle",
                           help: "A grid of images with titles"),
                     .init(value: .products, title: "Store", systemImage: "bag",
                           help: "Tall photo tiles with the name and price, showing any discount"),
                 ])
             }
-            if c.listStyle != .list {
+            if c.listStyle != .list && c.listStyle != .cardList {
                 LabeledContent("Columns") {
                     Stepper("\(c.columns)", value: $collection.columns, in: 1...6)
                 }
@@ -217,13 +219,13 @@ private struct CollectionSettings: View {
             Picker("Order", selection: $collection.sort) {
                 ForEach(ContentCollection.Sort.allCases, id: \.self) { Text($0.title).tag($0) }
             }
-            if c.listStyle == .cards {
+            if c.listStyle == .cards || c.listStyle == .cardList {
                 Toggle("Images", isOn: $collection.listImages)
             }
             if c.dated {
                 Toggle("Dates", isOn: $collection.listDates)
             }
-            if c.listStyle == .list || c.listStyle == .cards {
+            if c.listStyle == .list || c.listStyle == .cards || c.listStyle == .cardList {
                 Toggle("Summaries", isOn: $collection.listSummaries)
             }
             if c.listStyle == .products {

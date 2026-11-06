@@ -432,6 +432,16 @@ struct SiteRenderer: Sendable {
                 return card + "</a>"
             }
             return #"<div class="project-grid collection-grid" \#(style)>"# + cards.joined() + "</div>"
+        case .cardList:
+            // Rows in the theme's card look (.project-card), one per line.
+            let rows = items.map { item in
+                var card = #"<a class="project-card list-card" href="\#(escapeHTML(item.path))">"#
+                let image = c.listImages ? listImage(item, c) : ""
+                if !image.isEmpty { card += #"<img class="list-card-image" src="\#(escapeHTML(image))" alt="" loading="lazy">"# }
+                card += #"<div class="list-card-text">"# + "<h2>\(escapeHTML(item.title))</h2>" + date(item) + price(item) + summary(item) + "</div>"
+                return card + "</a>"
+            }
+            return #"<div class="collection-card-list">"# + rows.joined() + "</div>"
         case .gallery:
             let tiles = items.map { item in
                 let image = listImage(item, c)
@@ -1499,6 +1509,15 @@ extension SiteRenderer {
     .collection-grid { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 1.25rem; margin: 2rem 0; }
     .collection-grid .project-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
     .collection-grid .project-card time { display: block; margin: 0 0 0.35rem; }
+    .collection-card-list { display: flex; flex-direction: column; gap: 1rem; margin: 2rem 0; }
+    .list-card { display: flex; gap: 1.1rem; align-items: flex-start; }
+    .project-card.list-card img.list-card-image { flex: 0 0 auto; width: 9rem; aspect-ratio: 4 / 3; object-fit: cover; margin: 0; }
+    .list-card-text { flex: 1; min-width: 0; }
+    .list-card h2 { margin: 0 0 0.3rem; }
+    .list-card:hover h2 { color: var(--accent); }
+    .list-card time { display: block; margin: 0 0 0.35rem; color: var(--muted); font-size: 0.85rem; }
+    .list-card .list-card-text > p { margin: 0.35rem 0 0; }
+    @media (max-width: 600px) { .project-card.list-card img.list-card-image { width: 6rem; } }
     .collection-gallery { gap: 0.9rem; }
     .gallery-item { display: block; color: var(--text); text-decoration: none; }
     .gallery-item img, .gallery-blank { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--image-radius, 0); transition: opacity 0.2s; }
