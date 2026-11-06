@@ -16,6 +16,15 @@ struct SearchSection: View {
         (model.site?.items ?? []).filter { !$0.isLinkMenu && PageWidget.search.isUsed(in: $0.body) }
     }
 
+    /// The tags the buttons would show, from the pages search finds.
+    private var tagSummary: String {
+        guard let site = model.site else { return "" }
+        let tags = site.searchTags(includeDrafts: false)
+        if tags.isEmpty { return "No pages the search finds have tags yet." }
+        let names = tags.prefix(5).map(\.name)
+        return "\(tags.count) \(tags.count == 1 ? "tag" : "tags"): " + names.joined(separator: ", ") + (tags.count > 5 ? ", …" : "")
+    }
+
     private var inTopBar: Bool { config.menuLinks.contains { $0.url == searchPath } }
 
     var body: some View {
@@ -50,6 +59,20 @@ struct SearchSection: View {
             Section("Search Field") {
                 TextField("Placeholder", text: search.placeholder, prompt: Text("Search"))
                 TextField("Button", text: search.buttonLabel, prompt: Text("Search"))
+            }
+
+            Section {
+                Toggle(isOn: search.tagButtons) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Tag buttons")
+                        Text(tagSummary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+            } footer: {
+                caption("A button for each tag under the search field. Clicking one searches for it; clicking it again clears the search. Only tags on pages the search can find are shown.")
             }
 
             Section {

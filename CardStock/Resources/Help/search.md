@@ -27,6 +27,7 @@ In [Search](cardstock:search) in Configuration:
 - **Search this site** turns search on or off. Off leaves out the Search page and every search box.
 - **Find** picks which kinds of pages can be found: pages, blog posts, products and categories. Drafts are never found on your live site, and Home, the 404 page and link menus are left out.
 - **Search Field** sets the text shown in an empty field and the button's text.
+- **Tag buttons** shows a button for each of your tags under the search field, with how many pages have it. Clicking one searches for that tag, and clicking it again clears the search. Only tags on pages the search can find are shown, so a tag used only on drafts doesn't appear on your live site.
 
 The **Search** page is in [Pages](cardstock:pages) like Home. Its text shows above the search field, so you can change the title or add a line about what's on the site. It can't be deleted, but you can turn search off. Its design is `theme/search.html` in your site folder.
 

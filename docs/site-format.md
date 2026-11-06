@@ -244,11 +244,12 @@ Settings in `site.json`:
   "enabled": true,
   "kinds": ["page", "post", "product"],
   "placeholder": "Search",
-  "buttonLabel": "Search"
+  "buttonLabel": "Search",
+  "tagButtons": true
 }
 ```
 
-`enabled: false` leaves out `/pages/search/`, `/search.json` and every search box. `kinds` are page types (`page`, `post`, `product`, `blog-category`, a collection's `<id>` or `<id>-category`); a collection's main page is found when its items are. New collections are added to `kinds`.
+`enabled: false` leaves out `/pages/search/`, `/search.json` and every search box. `kinds` are page types (`page`, `post`, `product`, `blog-category`, a collection's `<id>` or `<id>-category`); a collection's main page is found when its items are. New collections are added to `kinds`. `tagButtons` (default true) puts a button for each tag on the pages search finds right after the Search page's `#search-form`: `<nav class="search-tags" aria-label="Search by tag">` holding `<a class="search-tag" href="/pages/search/?q=<tag>" data-tag="<tag>"><tag><span class="search-tag-count"><pages></span></a>` links, in name order (spellings merged), with a small `<style>` and a script that searches in place on click (clicking the searched tag again clears it) and marks the tag searched with `.is-active` and `aria-current`. Themes can place them with `{{{ search.tagButtons }}}`; then they aren't added again.
 
 ### Videos
 

@@ -106,6 +106,36 @@ struct SearchTests {
         #expect(try !Site.ensureSearchPage(in: root))
     }
 
+    @Test func tagButtons() throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let site = try makeSite([
+            "bread": "---\ntitle: Bread\ntags: [Baking, Sourdough & Rye]\n---\n",
+            "cake": "---\ntitle: Cake\ntags: [baking]\n---\n",
+            "secret": "---\ntitle: Secret\ndraft: true\ntags: [Hidden]\n---\n",
+        ])
+        let tags = site.searchTags(includeDrafts: false)
+        // Spellings merge, and counts are pages.
+        #expect(tags.first { $0.name.lowercased() == "baking" }?.count == 2)
+        #expect(!tags.contains { $0.name == "Hidden" }, "drafts' tags aren't published")
+        #expect(site.searchTags(includeDrafts: true).contains { $0.name == "Hidden" }, "the preview shows them")
+
+        let html = try #require(try SiteRenderer(site: site).render(path: ContentItem.searchPath))
+        // Right after the search form, as links that search for the tag.
+        let form = try #require(html.range(of: "</form>"))
+        let nav = try #require(html.range(of: #"<nav class="search-tags" aria-label="Search by tag">"#))
+        #expect(nav.lowerBound > form.lowerBound)
+        #expect(html.contains(#"href="/pages/search/?q=Sourdough%20%26%20Rye" data-tag="Sourdough &amp; Rye">Sourdough &amp; Rye<span class="search-tag-count">1</span></a>"#))
+        #expect(html.components(separatedBy: #"class="search-tags""#).count == 2, "added once")
+        #expect(html.contains("search-tag-count"))
+
+        // Off: none.
+        var off = site
+        off.config.search.tagButtons = false
+        #expect(!(try SiteRenderer(site: off).render(path: ContentItem.searchPath) ?? "").contains("search-tags"))
+        // Other pages don't get them.
+        #expect(!(try SiteRenderer(site: site).render(path: "/pages/bread/") ?? "").contains(#"class="search-tags""#))
+    }
+
     @Test func savesAndLoads() throws {
         var config = SiteConfig()
         config.search.enabled = false
@@ -114,5 +144,6 @@ struct SearchTests {
         #expect(decoded == config)
         let old = try JSONDecoder().decode(SiteConfig.self, from: Data(#"{"title":"Old"}"#.utf8))
         #expect(old.search == SiteConfig.Search())
+        #expect(old.search.tagButtons, "on unless turned off")
     }
 }

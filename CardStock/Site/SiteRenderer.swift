@@ -164,6 +164,7 @@ struct SiteRenderer: Sendable {
                 "index": .string(Self.searchIndexPath),
                 "placeholder": .string(search.shownPlaceholder),
                 "buttonLabel": .string(search.shownButtonLabel),
+                "tagButtons": .string(searchTagButtonsHTML()),
             ])
         }
         if let collection {
@@ -184,7 +185,8 @@ struct SiteRenderer: Sendable {
         if let layout = layout(for: item) {
             return renderLayout(item, layout, context: context)
         }
-        return wrap(templates[template]!.render(.dict(context)), context: context)
+        let html = wrap(templates[template]!.render(.dict(context)), context: context)
+        return item.isSearchPage ? insertSearchTags(into: html) : html
     }
 
     /// The page a folder shows, when it's there and published (or this is
@@ -1364,12 +1366,85 @@ extension SiteRenderer {
     /// The pages search can find, as the JSON the Search page loads: each
     /// with `title`, `url`, `type`, `date` (posts), `summary`, `tags` and
     /// `text` (the start of its text, without formatting).
-    func searchIndexJSON() -> String {
-        let search = site.config.search
-        let pages = site.items.filter { item in
-            search.includes(item.kind) && !item.isFixedPage && !item.isLinkMenu
-                && (includeDrafts || !item.isDraft)
+    /// The pages the search finds.
+    private var searchablePages: [ContentItem] { site.searchablePages(includeDrafts: includeDrafts) }
+
+    func searchTags() -> [(name: String, count: Int)] { site.searchTags(includeDrafts: includeDrafts) }
+
+    /// A button per tag for the Search page: links to the page with a search
+    /// for the tag (so they work in any theme, with or without scripts), and
+    /// a small script that searches in place and marks the tag searched.
+    /// Empty when the buttons are off or no searchable page has tags.
+    func searchTagButtonsHTML() -> String {
+        guard site.config.search.tagButtons else { return "" }
+        let tags = searchTags()
+        guard !tags.isEmpty else { return "" }
+        let links = tags.map { tag in
+            let query = tag.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&+=#"))) ?? tag.name
+            return #"<a class="search-tag" href="\#(ContentItem.searchPath)?q=\#(escapeHTML(query))" data-tag="\#(escapeHTML(tag.name))">"#
+                + escapeHTML(tag.name) + #"<span class="search-tag-count">\#(tag.count)</span></a>"#
         }
+        return Self.searchTagStyle + #"<nav class="search-tags" aria-label="Search by tag">"# + links.joined() + "</nav>"
+            + Self.searchTagScript
+    }
+
+    static let searchTagStyle = """
+    <style>
+    .search-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1rem; }
+    .search-tag { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.75rem; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--text); font-family: var(--font-heading); font-size: 0.85rem; text-decoration: none; line-height: 1.3; }
+    .search-tag:hover { border-color: var(--accent); color: var(--accent); }
+    .search-tag-count { color: var(--muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+    .search-tag.is-active { background: var(--button-bg, var(--accent)); border-color: var(--button-bg, var(--accent)); color: var(--button-text, #fff); }
+    .search-tag.is-active .search-tag-count { color: inherit; opacity: 0.8; }
+    </style>
+    """
+
+    /// Clicking a tag puts it in the field and searches without reloading;
+    /// the tag matching what's searched is marked.
+    static let searchTagScript = """
+    <script>
+    (function () {
+      var input = document.getElementById("search-input");
+      var tags = document.querySelectorAll(".search-tag");
+      function mark() {
+        var q = (input ? input.value : new URLSearchParams(location.search).get("q") || "").trim().toLowerCase();
+        tags.forEach(function (t) {
+          var on = t.getAttribute("data-tag").toLowerCase() === q;
+          t.classList.toggle("is-active", on);
+          if (on) t.setAttribute("aria-current", "true"); else t.removeAttribute("aria-current");
+        });
+      }
+      if (input) {
+        tags.forEach(function (t) {
+          t.addEventListener("click", function (e) {
+            e.preventDefault();
+            var tag = t.getAttribute("data-tag");
+            input.value = input.value.trim().toLowerCase() === tag.toLowerCase() ? "" : tag;
+            input.dispatchEvent(new Event("input"));
+            mark();
+          });
+        });
+        input.addEventListener("input", mark);
+      }
+      mark();
+    })();
+    </script>
+    """
+
+    /// Puts the tag buttons under the Search page's field, unless the theme
+    /// placed them itself with `{{{ search.tagButtons }}}`.
+    func insertSearchTags(into html: String) -> String {
+        guard !html.contains(#"class="search-tags""#) else { return html }
+        let buttons = searchTagButtonsHTML()
+        guard !buttons.isEmpty, let form = html.range(of: #"id="search-form""#),
+              let end = html.range(of: "</form>", range: form.upperBound..<html.endIndex) else { return html }
+        var html = html
+        html.insert(contentsOf: buttons, at: end.upperBound)
+        return html
+    }
+
+    func searchIndexJSON() -> String {
+        let pages = searchablePages
         let entries: [[String: Any]] = pages.map { item in
             var entry: [String: Any] = [
                 "title": item.title,

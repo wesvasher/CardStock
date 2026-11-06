@@ -98,6 +98,8 @@ struct SiteConfig: Codable, Equatable, Sendable {
         var kinds: [String] = [ContentKind.page, .post, .product].map(\.rawValue)
         var placeholder = "Search"
         var buttonLabel = "Search"
+        /// A button for each tag under the field; clicking one searches for it.
+        var tagButtons = true
 
         init() {}
 
@@ -108,6 +110,7 @@ struct SiteConfig: Codable, Equatable, Sendable {
             kinds = try c.decodeIfPresent([String].self, forKey: .kinds) ?? d.kinds
             placeholder = try c.decodeIfPresent(String.self, forKey: .placeholder) ?? d.placeholder
             buttonLabel = try c.decodeIfPresent(String.self, forKey: .buttonLabel) ?? d.buttonLabel
+            tagButtons = try c.decodeIfPresent(Bool.self, forKey: .tagButtons) ?? d.tagButtons
         }
 
         /// A collection's main page is found when its items are.
@@ -720,6 +723,25 @@ struct Site: Sendable {
     }
 
     var home: ContentItem? { items.first(where: \.isHome) }
+
+    /// The pages site search finds (drafts only in the preview).
+    func searchablePages(includeDrafts: Bool) -> [ContentItem] {
+        let search = config.search
+        return items.filter { item in
+            search.includes(item.kind) && !item.isFixedPage && !item.isLinkMenu
+                && (includeDrafts || !item.isDraft)
+        }
+    }
+
+    /// Tags on pages the search finds, with how many have each, by name.
+    /// Spellings are merged (`Design`, `design`), using the most common.
+    func searchTags(includeDrafts: Bool) -> [(name: String, count: Int)] {
+        let searchable = Set(searchablePages(includeDrafts: includeDrafts).map(\.id))
+        return tagIndex(includeDrafts: includeDrafts)
+            .map { tag in (tag.name, tag.pages.filter { searchable.contains($0.id) }.count) }
+            .filter { $0.1 > 0 }
+            .sorted { $0.0.localizedStandardCompare($1.0) == .orderedAscending }
+    }
 
     /// The page file shown at an address in the preview, so it can be
     /// opened in the editor: a page's own address, the Template page, or a
