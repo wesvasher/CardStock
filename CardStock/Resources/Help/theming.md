@@ -133,7 +133,7 @@ To make another list, click **New Page…** in [Pages](cardstock:pages) and choo
 - **Code Blocks**: corner radius.
 - **Quotes**: the color and width of the line beside a quote.
 - **Tables**: shade every other row.
-- **Drop-Down Menus**: corner radius of the footer's menus.
+- **Drop-Down Menus**: **Menu corners** rounds the footer's menus, and **Link highlight corners** rounds the background behind a link when the pointer is over it. Type a number or use − and +. Reset puts Menu corners back to your Corners setting and the highlight back to **Auto**, which keeps it fitting neatly inside the menu's corners.
 
 Every slider has **−** and **+** buttons for small steps.
 

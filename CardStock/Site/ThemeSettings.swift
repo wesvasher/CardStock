@@ -156,6 +156,19 @@ struct ThemeSettings: Codable, Equatable, Sendable {
 
     /// Drop-down menus, such as the footer's.
     var menuRadius: Double = 8
+    /// Corners of the highlight behind a link in a drop-down menu when it's
+    /// pointed at. nil is Auto: the menu's corners less its padding, so the
+    /// curves run parallel (`autoMenuItemRadius`).
+    var menuItemRadius: Double?
+
+    /// Space around a drop-down menu's links (0.3rem in style.css).
+    static let menuPadding: Double = 4.8
+
+    /// What Auto works out to for the menu's corners.
+    var autoMenuItemRadius: Double { max(0, (menuRadius - Self.menuPadding).rounded()) }
+
+    /// The highlight's corners, Auto or set.
+    var shownMenuItemRadius: Double { menuItemRadius ?? autoMenuItemRadius }
 
     // Top bar links (Configuration → Top Navigation Bar → Link Style).
 
@@ -316,6 +329,7 @@ struct ThemeSettings: Codable, Equatable, Sendable {
         quoteBarWidth = try c.decodeIfPresent(Double.self, forKey: .quoteBarWidth) ?? d.quoteBarWidth
         tableStripes = try c.decodeIfPresent(Bool.self, forKey: .tableStripes) ?? d.tableStripes
         menuRadius = try c.decodeIfPresent(Double.self, forKey: .menuRadius) ?? r * RadiusShare.menu
+        menuItemRadius = try c.decodeIfPresent(Double.self, forKey: .menuItemRadius)
         navFont = try c.decodeIfPresent(String.self, forKey: .navFont) ?? d.navFont
         navSize = try c.decodeIfPresent(Double.self, forKey: .navSize) ?? d.navSize
         navWeight = try c.decodeIfPresent(Int.self, forKey: .navWeight) ?? d.navWeight
@@ -331,6 +345,7 @@ struct ThemeSettings: Codable, Equatable, Sendable {
         coverRadius = (radius * RadiusShare.cover).rounded()
         codeRadius = (radius * RadiusShare.code).rounded()
         menuRadius = (radius * RadiusShare.menu).rounded()
+        menuItemRadius = nil
     }
 
     /// nil when the site has no theme.json (the theme's own CSS is used as is).
@@ -456,11 +471,15 @@ struct ThemeSettings: Codable, Equatable, Sendable {
         case .dark:
             css += "  color-scheme: dark;\n" + Self.vars(dark) + Self.navVars(navDark) + Self.buttonVars(navButton.dark) + "}\n"
         }
-        return css + Self.barWidthRules
+        return css + Self.barWidthRules + Self.menuItemRules
     }
 
     /// Sizes the top bar and footer from their own widths, also in themes
     /// whose style.css only knows --bar-width.
+    /// Older themes round menu links with `calc(var(--radius) - 3px)`; this
+    /// gives them the Highlight corners setting too.
+    static let menuItemRules = ".footer-menu li a { border-radius: var(--menu-item-radius); }\n"
+
     static let barWidthRules = ".site-header { max-width: var(--header-width); }\n.site-footer { max-width: var(--footer-width); }\n"
 
     static func shadowValue(_ shadow: Shadow) -> String {
@@ -501,6 +520,7 @@ struct ThemeSettings: Codable, Equatable, Sendable {
             ("quote-bar-width", px(quoteBarWidth)),
             ("table-stripe", tableStripes ? "color-mix(in srgb, var(--text) 5%, transparent)" : "transparent"),
             ("menu-radius", px(menuRadius)),
+            ("menu-item-radius", menuItemRadius.map(px) ?? "max(0px, calc(var(--menu-radius) - 0.3rem))"),
         ]
         if buttonStyle == .filled {
             lines += [("button-bg", "var(--accent)"), ("button-text", "var(--bg)")]

@@ -379,6 +379,7 @@ An item (any page) has `title`, `slug`, `url`, `type`, `date` (`2026-10-20`), `d
   "quoteBarWidth": 3,
   "tableStripes": false,
   "menuRadius": 8,
+  "menuItemRadius": 3,
   "navFont": "",
   "navSize": 15,
   "navWeight": 400,
@@ -435,6 +436,7 @@ When the file exists, CardStock adds a `<style id="cardstock-theme">` block (and
 | `--card-radius`, `--card-padding` | `cardRadius`, `cardPadding` (px) |
 | `--card-border`, `--card-shadow` | `cardBorder`, `cardShadow` (full `border` and `box-shadow` values) |
 | `--cover-radius`, `--image-radius`, `--code-radius`, `--menu-radius` | `coverRadius`, `imageRadius`, `codeRadius`, `menuRadius` (px) |
+| `--menu-item-radius` | `menuItemRadius` (px): corners of a menu link's highlight. Left out for Auto, which is `max(0px, calc(var(--menu-radius) - 0.3rem))` so it fits inside the menu's padding. The generated CSS also adds `.footer-menu li a { border-radius: var(--menu-item-radius); }` so older themes use it |
 | `--quote-bar`, `--quote-bar-width` | `quoteColor` (a color), `quoteBarWidth` (px) |
 | `--table-stripe`  | `tableStripes` (a background for even rows, or `transparent`) |
 

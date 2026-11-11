@@ -105,13 +105,32 @@ struct ComponentsSection: View {
         }
 
         Section {
-            LabeledContent("Corner radius") {
-                NudgeSlider(value: $theme.menuRadius, range: 0...24)
+            let followsCorners = (theme.radius * ThemeSettings.RadiusShare.menu).rounded()
+            LabeledContent("Menu corners") {
+                NumberStepper(value: $theme.menuRadius, range: 0...32,
+                              isReset: theme.menuRadius == followsCorners,
+                              resetHelp: "Reset to \(Int(followsCorners)) px, your Corners setting") {
+                    theme.menuRadius = followsCorners
+                }
+            }
+            LabeledContent {
+                NumberStepper(value: Binding(get: { theme.shownMenuItemRadius }, set: { theme.menuItemRadius = $0 }),
+                              range: 0...32, isReset: theme.menuItemRadius == nil,
+                              resetHelp: "Reset to Auto: fits inside the menu's corners") {
+                    theme.menuItemRadius = nil
+                }
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Link highlight corners")
+                    Text(theme.menuItemRadius == nil ? "Auto: fits inside the menu's corners" : "Set by you")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         } header: {
             Text("Drop-Down Menus")
         } footer: {
-            caption("The lists of links that open from the footer's menu buttons.")
+            caption("The lists of links that open from the footer's menu buttons. Link highlight corners round the background behind a link when the pointer is over it. On Auto they follow the menu's corners, less the space around the links, so the curves run side by side.")
         }
     }
 

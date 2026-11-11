@@ -55,6 +55,7 @@
   --quote-bar-width: 3px;
   --table-stripe: transparent;
   --menu-radius: var(--radius);
+  --menu-item-radius: max(0px, calc(var(--menu-radius) - 0.3rem));
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -314,5 +315,5 @@ h1 { font-size: var(--h1-size); margin: 0 0 0.5rem; letter-spacing: -0.01em; }
 .footer-menu summary::-webkit-details-marker { display: none; }
 .footer-menu summary:hover, .footer-menu[open] summary { color: var(--accent); border-color: var(--accent); }
 .footer-menu ul { position: absolute; right: 0; bottom: calc(100% + 0.4rem); z-index: 10; min-width: 10rem; margin: 0; padding: 0.3rem; list-style: none; background: var(--card); border: 1px solid var(--line); border-radius: var(--menu-radius); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14); }
-.footer-menu li a { display: block; padding: 0.35rem 0.65rem; border-radius: calc(var(--radius) - 3px); color: var(--text); text-decoration: none; white-space: nowrap; }
+.footer-menu li a { display: block; padding: 0.35rem 0.65rem; border-radius: var(--menu-item-radius); color: var(--text); text-decoration: none; white-space: nowrap; }
 .footer-menu li a:hover { background: var(--line); color: var(--accent); }

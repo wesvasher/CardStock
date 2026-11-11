@@ -393,6 +393,27 @@ struct ComponentsTests {
                 && theme.codeRadius == 4 && theme.menuRadius == 4)
     }
 
+    @Test func menuLinkHighlightCorners() throws {
+        var theme = ThemeSettings()
+        theme.menuRadius = 12
+        // Auto: the menu's corners less its padding, worked out by the browser.
+        #expect(theme.menuItemRadius == nil && theme.shownMenuItemRadius == 7)
+        #expect(theme.css.contains("--menu-item-radius: max(0px, calc(var(--menu-radius) - 0.3rem));"))
+        theme.menuRadius = 2
+        #expect(theme.shownMenuItemRadius == 0, "never below 0")
+        // Set by hand.
+        theme.menuItemRadius = 4
+        #expect(theme.css.contains("--menu-item-radius: 4px;"))
+        // Older themes get it through an extra rule.
+        #expect(theme.css.contains(".footer-menu li a { border-radius: var(--menu-item-radius); }"))
+        // Saved, and Auto in older theme.json files; Corners → all resets it.
+        let decoded = try JSONDecoder().decode(ThemeSettings.self, from: JSONEncoder().encode(theme))
+        #expect(decoded.menuItemRadius == 4)
+        #expect(try JSONDecoder().decode(ThemeSettings.self, from: Data("{}".utf8)).menuItemRadius == nil)
+        theme.applyRadiusToAll()
+        #expect(theme.menuItemRadius == nil)
+    }
+
     @Test func starterStylesheetUsesEveryVariable() throws {
         let url = try #require(Bundle.main.url(forResource: "StarterSite", withExtension: nil))
         let css = try String(contentsOf: url.appending(path: "theme/assets/style.css"), encoding: .utf8)
@@ -400,7 +421,7 @@ struct ComponentsTests {
                      "nav-icon-dir", "nav-icon", "navbtn-icon", "navbtn-bg", "navbtn-text", "navbtn-border", "navbtn-border-width", "navbtn-radius",
                      "navbtn-alpha", "navbtn-blur", "navbtn-shadow", "navbtn-pad-x", "navbtn-pad-y", "button-radius", "button-pad-x", "button-pad-y", "button-bg", "button-text", "card-radius",
                      "card-padding", "card-border", "card-shadow", "cover-radius", "image-radius", "code-radius",
-                     "quote-bar", "quote-bar-width", "table-stripe", "menu-radius"] {
+                     "quote-bar", "quote-bar-width", "table-stripe", "menu-radius", "menu-item-radius"] {
             #expect(css.contains("var(--\(name))"), "style.css doesn't use --\(name)")
         }
     }
