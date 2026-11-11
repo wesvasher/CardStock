@@ -145,6 +145,9 @@ final class PreviewSchemeHandler: NSObject, WKURLSchemeHandler {
         guard let site else { return (Data(), "text/plain", 404) }
         let root = site.root
 
+        if path == ModelEmbed.scriptPath, let script = ModelEmbed.bundledScript, let data = try? Data(contentsOf: script) {
+            return (data, "text/javascript; charset=utf-8", 200)
+        }
         if path.hasPrefix("/assets/") {
             if let file = fileResponse(root.appending(path: "theme"), path) { return file }
         } else if path.hasPrefix("/media/") {

@@ -137,6 +137,7 @@ enum MediaLibrary {
     static func markdown(for file: MediaFile) -> String {
         let url = { (path: String) in "/" + (path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path) }
         let description = ImageImporter.cleanAlt(ImageImporter.defaultAlt(for: URL(filePath: file.path)))
+        if ModelEmbed.isModelFile(file.path) { return ModelEmbed.marker(src: url(file.path), alt: description) }
         guard file.isImage else { return "[\(description)](\(url(file.path)))" }
         if let small = file.smallPath {
             return "[![\(description)](\(url(small)))](\(url(file.path)))"

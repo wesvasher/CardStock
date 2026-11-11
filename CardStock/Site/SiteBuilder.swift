@@ -25,8 +25,10 @@ enum SiteBuilder {
 
         do {
             var count = 0
+            var showsModels = false
             for path in renderer.paths {
                 guard let html = renderer.render(path: path) else { continue }
+                if ModelEmbed.isShown(in: html) { showsModels = true }
                 let file = path.hasSuffix("/") ? path + "index.html" : path
                 let url = staging.appending(path: String(file.dropFirst()))
                 try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -46,6 +48,17 @@ enum SiteBuilder {
             try copyFolder(site.root.appending(path: "theme/assets"), to: staging.appending(path: "assets"))
             try copyFolder(site.root.appending(path: "media"), to: staging.appending(path: "media"))
             warnings += try SiteIcon.write(site.config, root: site.root, to: staging)
+            // The 3D viewer's script, only for sites that show a model.
+            if showsModels {
+                if let script = ModelEmbed.bundledScript {
+                    let target = staging.appending(path: String(ModelEmbed.scriptPath.dropFirst()))
+                    try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try? fm.removeItem(at: target)
+                    try fm.copyItem(at: script, to: target)
+                } else {
+                    warnings.append("Pages show 3D models, but CardStock's 3D viewer is missing, so they won't appear.")
+                }
+            }
 
             if fm.fileExists(atPath: output.path) {
                 try fm.removeItem(at: output)

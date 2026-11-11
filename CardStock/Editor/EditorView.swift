@@ -14,6 +14,18 @@ struct EditorView: View {
     @State private var choosingHoverVideo = false
     @State private var confirmDelete = false
     @State private var showBuyButton = false
+    @State private var choosingModel = false
+    /// The 3D model whose settings are open: a new one, or the line under the cursor.
+    @State private var modelSettings: ModelSettingsTarget?
+
+    struct ModelSettingsTarget: Identifiable {
+        let id = UUID()
+        let src: String
+        let alt: String
+        let options: ModelEmbed.Options
+        /// The line being changed; nil for a new model.
+        let range: NSRange?
+    }
     /// The Page Settings accordion; closed whenever a page opens, so the
     /// text sits high.
     @State private var settingsOpen = false
@@ -34,6 +46,28 @@ struct EditorView: View {
             }
         }
         .sheet(isPresented: $showNewCollection) { AddCollectionSheet(page: current) }
+        .sheet(isPresented: $choosingModel) {
+            InsertFromFilesSheet(title: "Insert a 3D Model",
+                                 message: "Pick a .glb file from your site's Files, or choose one from your Mac to copy it in. Visitors can turn it, zoom in, and see it in their room on a phone.",
+                                 actionTitle: "Choose", allowsMacFiles: true, startFilter: .models) { file in
+                let src = "/" + (file.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? file.path)
+                let alt = ImageImporter.cleanAlt(ImageImporter.defaultAlt(for: URL(filePath: file.path)))
+                // Once the file list has closed: a sheet can't open while another is closing.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    modelSettings = ModelSettingsTarget(src: src, alt: alt, options: ModelEmbed.Options(), range: nil)
+                }
+            }
+        }
+        .sheet(item: $modelSettings) { target in
+            ModelSettingsSheet(src: target.src, alt: target.alt, options: target.options, isNew: target.range == nil) { alt, options in
+                if let range = target.range {
+                    editor.replace(range, with: ModelEmbed.marker(src: target.src, alt: alt, options: options))
+                } else {
+                    editor.model(src: target.src, alt: alt, options: options)
+                    model.showToast("Inserted \((target.src as NSString).lastPathComponent).")
+                }
+            }
+        }
         .sheet(isPresented: $showBuyButton) {
             InsertBuyButtonSheet(defaultLabel: config.shopping.shownButtonLabel) { link, label in
                 editor.buyButton(link: link, label: label)
@@ -262,7 +296,8 @@ struct EditorView: View {
             // no tools are cut off.
             ScrollView(.horizontal, showsIndicators: false) {
                 FormattingBar(editor: editor, onUploadImage: chooseImages, onChooseFromFiles: { showFilePicker = true },
-                              showsBuyButton: config.shopping.usesPaymentLinks, onBuyButton: { showBuyButton = true })
+                              showsBuyButton: config.shopping.usesPaymentLinks, onBuyButton: { showBuyButton = true },
+                              onModel: modelButton)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
             }
@@ -415,6 +450,16 @@ struct EditorView: View {
     }
 
     /// A word on the hover video: what's wrong with it, or how it shows.
+    /// The cube button: with the cursor on a model's line, its settings;
+    /// otherwise pick a model to insert.
+    private func modelButton() {
+        if let line = editor.modelLineAtCursor() {
+            modelSettings = ModelSettingsTarget(src: line.src, alt: line.alt, options: line.options, range: line.range)
+        } else {
+            choosingModel = true
+        }
+    }
+
     /// A hint under Payment link when it isn't a working link.
     private var paymentLinkNote: String? {
         let link = (current.frontMatter.string("buy") ?? "").trimmingCharacters(in: .whitespaces)
@@ -478,6 +523,7 @@ private struct FormattingBar: View {
     /// Configuration → Shopping uses Stripe Payment Links.
     var showsBuyButton = false
     var onBuyButton: () -> Void = {}
+    var onModel: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 2) {
@@ -523,6 +569,7 @@ private struct FormattingBar: View {
             .menuIndicator(.visible)
             .fixedSize()
             .help("Insert an image at the cursor. You can also drag or paste images into the text.")
+            tool("cube", "Insert a 3D model (.glb) that visitors can turn and zoom. With the cursor on a model's line, change its size and background.", onModel)
             tool("face.smiling", "Insert an emoji at the cursor", editor.showEmojiPicker)
             Spacer(minLength: 0)
         }

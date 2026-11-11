@@ -86,8 +86,7 @@ struct InsertFromFilesSheet: View {
             HStack {
                 if allowsMacFiles {
                     Button("Choose from Mac…", action: chooseFromMac)
-                        .help(startFilter == .videos ? "Copy a video from your Mac into your site's Files and use it"
-                              : "Copy an image from your Mac into your site's Files and use it")
+                        .help("Copy \(startFilter == .videos ? "a video" : startFilter == .models ? "a 3D model (.glb)" : "an image") from your Mac into your site's Files and use it")
                 }
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
@@ -134,7 +133,11 @@ struct InsertFromFilesSheet: View {
         panel.prompt = actionTitle
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.allowedContentTypes = startFilter == .videos ? [.mpeg4Movie, .quickTimeMovie, .movie] : [.image]
+        switch startFilter {
+        case .videos: panel.allowedContentTypes = [.mpeg4Movie, .quickTimeMovie, .movie]
+        case .models: panel.allowedContentTypes = ModelEmbed.extensions.compactMap { UTType(filenameExtension: $0) }
+        default: panel.allowedContentTypes = [.image]
+        }
         guard panel.runModal() == .OK, let url = panel.url,
               let file = model.addFiles([url]).first
         else { return }

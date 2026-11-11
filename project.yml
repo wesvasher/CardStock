@@ -25,6 +25,7 @@ targets:
         excludes:
           - "Resources/StarterSite"
           - "Resources/Help"
+          - "Resources/ModelViewer"
           - "Resources/AppIcon.icon"
       # Icon Composer file: Xcode compiles it into the app icon.
       - path: CardStock/Resources/AppIcon.icon
@@ -35,6 +36,10 @@ targets:
         buildPhase: resources
       # Help Center articles (Markdown), read by Help/HelpCenter.
       - path: CardStock/Resources/Help
+        type: folder
+        buildPhase: resources
+      # Google's <model-viewer> (Apache 2.0), copied into sites with 3D models.
+      - path: CardStock/Resources/ModelViewer
         type: folder
         buildPhase: resources
     dependencies:

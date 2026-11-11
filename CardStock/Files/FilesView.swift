@@ -948,6 +948,7 @@ enum FileFilter: String, CaseIterable, Hashable {
     case all = "All"
     case images = "Images"
     case videos = "Videos"
+    case models = "3D Models"
     case unused = "Not Used"
 
     /// The files matching a filter and search, in the chosen order.
@@ -958,6 +959,7 @@ enum FileFilter: String, CaseIterable, Hashable {
                 case .all: true
                 case .images: file.isImage
                 case .videos: SiteRenderer.isVideoFile(file.path)
+                case .models: ModelEmbed.isModelFile(file.path)
                 case .unused: file.usedIn.isEmpty
                 }
             }

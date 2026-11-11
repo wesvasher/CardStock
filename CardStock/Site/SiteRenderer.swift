@@ -782,6 +782,10 @@ struct SiteRenderer: Sendable {
         context["body"] = .string(insertWidgets(into: body))
         var html = Lightbox.inject(into: templates["base"]!.render(.dict(context)))
         html = insertDarkLogos(into: html)
+        // The 3D viewer's script, on pages that show a model.
+        if ModelEmbed.isShown(in: body), let head = html.range(of: "</head>", options: .caseInsensitive) {
+            html.insert(contentsOf: ModelEmbed.headHTML, at: head.lowerBound)
+        }
         // Styles for lists, galleries, pagers and videos, on pages that have them.
         if Self.collectionMarkers.contains(where: body.contains),
            let head = html.range(of: "</head>", options: .caseInsensitive) {
@@ -926,7 +930,7 @@ struct SiteRenderer: Sendable {
     }
 
     static func markdownToHTML(_ markdown: String) -> String {
-        HTMLFormatter.format(SiteConfig.Newsletter.markPlaces(in: BuyButton.markPlaces(in: VideoEmbed.markPlaces(in: markdown))))
+        HTMLFormatter.format(SiteConfig.Newsletter.markPlaces(in: BuyButton.markPlaces(in: ModelEmbed.markPlaces(in: VideoEmbed.markPlaces(in: markdown)))))
     }
 
     private static let isoDate: DateFormatter = {

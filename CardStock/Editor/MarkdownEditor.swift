@@ -66,6 +66,34 @@ final class MarkdownEditorController {
     func newsletter() { insertBlocks([PageWidget.newsletter.marker]) }
     func searchBox() { insertBlocks([PageWidget.search.marker]) }
     func buyButton(link: String, label: String) { insertBlocks([BuyButton.marker(link: link, label: label)]) }
+    func model(src: String, alt: String, options: ModelEmbed.Options) {
+        insertBlocks([ModelEmbed.marker(src: src, alt: alt, options: options)])
+    }
+
+    /// The 3D model line the cursor is on, with its place in the text.
+    func modelLineAtCursor() -> (range: NSRange, src: String, alt: String, options: ModelEmbed.Options)? {
+        guard let textView else { return nil }
+        let string = textView.string as NSString
+        let line = string.lineRange(for: NSRange(location: min(textView.selectedRange().location, string.length), length: 0))
+        var text = string.substring(with: line)
+        var range = line
+        while text.hasSuffix("\n") || text.hasSuffix("\r") {
+            text.removeLast()
+            range.length -= 1
+        }
+        guard let model = ModelEmbed.parse(text) else { return nil }
+        return (range, model.src, model.alt, model.options)
+    }
+
+    /// Puts a new line in place of `range` (a model's line). Undoable.
+    func replace(_ range: NSRange, with text: String) {
+        guard let textView, NSMaxRange(range) <= (textView.string as NSString).length,
+              textView.shouldChangeText(in: range, replacementString: text) else { return }
+        textView.replaceCharacters(in: range, with: text)
+        textView.didChangeText()
+        textView.setSelectedRange(NSRange(location: range.location + (text as NSString).length, length: 0))
+        textView.window?.makeFirstResponder(textView)
+    }
 
     private func wrap(_ marker: String) {
         apply { MarkdownFormatting.toggleWrap($0, $1, marker: marker) }
